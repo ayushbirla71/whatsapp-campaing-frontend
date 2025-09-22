@@ -1,0 +1,4 @@
+.env
+
+# Ignore node_modules (for JS/React/Node projects)
+node_modules
