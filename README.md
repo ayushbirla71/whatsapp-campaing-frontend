@@ -51,11 +51,6 @@ npm start
 
 2. Open your browser and navigate to `http://localhost:3001`
 
-## Default Credentials
-
-Use these credentials to log in as super admin:
-- **Email**: `superadmin@example.com`
-- **Password**: `SuperAdmin123!`
 
 ## Available Scripts
 
