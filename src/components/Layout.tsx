@@ -9,6 +9,7 @@ import {
   LayoutTemplate,
   Building2,
   Backpack,
+  Files,
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -27,6 +28,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Templates', href: '/templates', icon: LayoutTemplate },
     { name: 'Campaigns', href: '/campaigns', icon: Backpack },
     { name: 'Audience', href: '/audience', icon: Users },
+    { name: 'Asset Files', href: '/asset-files', icon: Files },
   ];
 
   const handleLogout = async () => {

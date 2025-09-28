@@ -33,6 +33,7 @@ const Templates: React.FC = () => {
   const [previewTitle, setPreviewTitle] = useState('');
   const [previewComponents, setPreviewComponents] = useState<any>(null);
   const [previewContext, setPreviewContext] = useState<string>('');
+  const [previewHeaderMedia, setPreviewHeaderMedia] = useState<Array<{ url: string; format: string }>>([]);
 
   const [form, setForm] = useState<CreateTemplateRequest>({
     name: '',
@@ -189,6 +190,34 @@ const Templates: React.FC = () => {
         .map((c: any) => c?.text || c?.body_text || c?.data?.text || c?.example || c?.content || '')
         .filter((s: any) => typeof s === 'string' && s.trim().length > 0);
       setPreviewContext(bodyTexts.join('\n\n'));
+
+      // Extract header media: components with type HEADER and example.header_handle
+      const headerMedia: Array<{ url: string; format: string }> = [];
+      list
+        .filter((c: any) => {
+          const t = (c?.type || c?.component_type || c?.name || '').toString().toUpperCase();
+          return t === 'HEADER';
+        })
+        .forEach((c: any) => {
+          // Determine media format
+          const fmt = (c?.format || c?.data?.format || c?.header_format || '').toString().toUpperCase();
+          // example.header_handle can be string | string[] | nested
+          const ex = c?.example || c?.examples || c?.data?.example || {};
+          let handles: any = ex?.header_handle ?? ex?.header_handles ?? ex?.header ?? ex?.handles;
+          if (handles) {
+            if (typeof handles === 'string') {
+              headerMedia.push({ url: handles, format: fmt || 'MEDIA' });
+            } else if (Array.isArray(handles)) {
+              handles.forEach((h: any) => {
+                if (typeof h === 'string') headerMedia.push({ url: h, format: fmt || 'MEDIA' });
+                else if (h && typeof h?.url === 'string') headerMedia.push({ url: h.url, format: (h.format || fmt || 'MEDIA').toString().toUpperCase() });
+              });
+            } else if (handles && typeof handles === 'object') {
+              if (typeof handles?.url === 'string') headerMedia.push({ url: handles.url, format: (handles.format || fmt || 'MEDIA').toString().toUpperCase() });
+            }
+          }
+        });
+      setPreviewHeaderMedia(headerMedia);
       setShowPreview(true);
     } catch (e: any) {
       setError(e.response?.data?.message || 'Failed to load template preview');
@@ -491,11 +520,43 @@ const Templates: React.FC = () => {
               <h3 className="text-lg font-semibold">{previewTitle} - Context</h3>
               <button onClick={() => setShowPreview(false)} className="px-3 py-1 text-sm rounded bg-gray-100">Close</button>
             </div>
-            {previewContext && previewContext.trim().length > 0 ? (
-              <pre className="text-sm bg-gray-50 p-3 rounded whitespace-pre-wrap">{previewContext}</pre>
-            ) : (
-              <div className="text-sm text-gray-600">No BODY text found for this template.</div>
+
+                        {/* HEADER MEDIA */}
+                        {previewHeaderMedia && previewHeaderMedia.length > 0 && (
+              <div>
+                <div className="text-xs font-medium text-gray-500 mb-1">Header Media</div>
+                <ul className="space-y-4">
+                  {previewHeaderMedia.map((m, idx) => (
+                    <li key={idx} className="text-sm">
+                      <div className="mb-1">
+                        <span className="mr-2 inline-block px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-xs font-semibold">{m.format}</span>
+                        <a href={m.url} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline break-all">Open link</a>
+                      </div>
+                      {m.format === 'IMAGE' ? (
+                        <img src={m.url} alt="Header media" className="max-h-64 rounded border border-gray-200 object-contain" />
+                      ) : m.format === 'VIDEO' ? (
+                        <video controls className="w-full max-h-80 rounded border border-gray-200 bg-black">
+                          <source src={m.url} />
+                          Your browser does not support the video tag.
+                        </video>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
+            
+            {/* BODY */}
+            {previewContext && previewContext.trim().length > 0 ? (
+              <>
+                <div className="text-xs font-medium text-gray-500 mb-1">Body</div>
+                <pre className="text-sm bg-gray-50 p-3 rounded whitespace-pre-wrap mb-4">{previewContext}</pre>
+              </>
+            ) : (
+              <div className="text-sm text-gray-600 mb-4">No BODY text found for this template.</div>
+            )}
+
+
           </div>
         </div>
       )}

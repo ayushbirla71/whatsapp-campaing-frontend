@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
+import { toast } from 'react-toastify';
 import { AuthResponse, LoginRequest, RegisterRequest, ApiResponse } from '../types/auth';
 import { Organization, CreateOrganizationRequest, UpdateOrganizationRequest, WhatsAppConfig } from '../types/organization';
 import { User, CreateUserRequest, UpdateUserRequest, UserListResponse } from '../types/user';
@@ -60,6 +61,40 @@ class ApiService {
             localStorage.removeItem('user');
             window.location.href = '/login';
           }
+        }
+
+        // Global error toast handling (can be suppressed per-request by setting config.suppressToast = true)
+        try {
+          const cfg: any = originalRequest || {};
+          if (!cfg?.suppressToast) {
+            const status = error?.response?.status;
+            const data = error?.response?.data;
+            let message: string = '';
+
+            // Prefer explicit message fields
+            if (data?.message) message = String(data.message);
+            else if (typeof data === 'string') message = data;
+            else if (data?.error) message = String(data.error);
+
+            // Network or timeout errors
+            if (!error.response) {
+              if (error.code === 'ECONNABORTED') message = message || 'Request timed out. Please try again.';
+              else message = message || 'Network error. Please check your connection.';
+            }
+
+            // Status-based fallbacks
+            if (!message) {
+              if (status === 400) message = 'Bad request.';
+              else if (status === 401) message = 'Your session has expired. Please login again.';
+              else if (status === 403) message = 'You do not have permission to perform this action.';
+              else if (status === 404) message = 'The requested resource was not found.';
+              else if (status >= 500) message = 'Server error. Please try again later.';
+            }
+
+            toast.error(message || 'Something went wrong.');
+          }
+        } catch {
+          // ignore toast failures
         }
 
         return Promise.reject(error);
@@ -240,13 +275,11 @@ class ApiService {
   async getCampaigns(page = 1, limit = 10, organizationId?: string, status?: string): Promise<ApiResponse<CampaignListResponse>> {
     const params = new URLSearchParams({ page: page.toString(), limit: limit.toString() });
     if (status) params.append('status', status);
-    // Prefer organization-scoped endpoint when organizationId is provided
-    if (organizationId) {
-      const response: AxiosResponse<ApiResponse> = await this.api.get(`/api/campaigns/organization/${organizationId}?${params}`);
-      return response.data;
+    // Enforce organization-scoped endpoint to match backend and avoid 404 on global route
+    if (!organizationId) {
+      throw new Error('organizationId is required to fetch campaigns');
     }
-    // Fallback to global list if no organizationId provided
-    const response: AxiosResponse<ApiResponse> = await this.api.get(`/api/campaigns?${params}`);
+    const response: AxiosResponse<ApiResponse> = await this.api.get(`/api/campaigns/organization/${organizationId}?${params}`);
     return response.data;
   }
 
@@ -278,7 +311,8 @@ class ApiService {
   }
 
   async submitCampaign(id: string): Promise<ApiResponse> {
-    const response: AxiosResponse<ApiResponse> = await this.api.post(`/api/campaigns/${id}/submit-approval`);
+    // Suppress global toast so UI can handle and show a clean message
+    const response: AxiosResponse<ApiResponse> = await this.api.post(`/api/campaigns/${id}/submit-approval`, undefined, { suppressToast: true } as any);
     return response.data;
   }
 
@@ -315,7 +349,11 @@ class ApiService {
   }
 
   async getCampaignStatistics(organizationId?: string): Promise<ApiResponse<CampaignStatistics>> {
-    const params = organizationId ? `?organization_id=${organizationId}` : '';
+    // Avoid calling a conflicting global path like /api/campaigns/statistics which some backends treat as /api/campaigns/:id
+    if (!organizationId) {
+      throw new Error('organizationId is required to fetch campaign statistics');
+    }
+    const params = `?organization_id=${organizationId}`;
     const response: AxiosResponse<ApiResponse> = await this.api.get(`/api/campaigns/statistics${params}`);
     return response.data;
   }
@@ -365,8 +403,13 @@ class ApiService {
     return response.data;
   }
 
-  async addAudienceToCampaign(campaignId: string, audienceIds: string[]): Promise<ApiResponse> {
-    const response: AxiosResponse<ApiResponse> = await this.api.post(`/api/campaigns/${campaignId}/audience`, { audience_ids: audienceIds });
+  async addAudienceToCampaign(
+    campaignId: string,
+    audienceList: Array<{ name: string; msisdn: string; attributes?: any }>
+  ): Promise<ApiResponse> {
+    // Backend expects 'audience_list' with objects having 'name' and 'msisdn'
+    const payload = { audience_list: audienceList };
+    const response: AxiosResponse<ApiResponse> = await this.api.post(`/api/campaigns/${campaignId}/audience`, payload);
     return response.data;
   }
 
@@ -389,6 +432,27 @@ class ApiService {
   async getOrgAssetFiles(organizationId: string,page = 1, limit = 10): Promise<ApiResponse> {
     const params = new URLSearchParams({ page: page.toString(), limit: limit.toString() });
     const response: AxiosResponse<ApiResponse> = await this.api.get(`/api/asset-files/organization/${organizationId}?${params}`);
+    return response.data;
+  }
+
+  // Additional Asset File endpoints
+  async updateAssetFile(assetFileId: string, data: any): Promise<ApiResponse> {
+    const response: AxiosResponse<ApiResponse> = await this.api.put(`/api/asset-files/${assetFileId}`, data);
+    return response.data;
+  }
+
+  async createAssetFileVersion(templateId: string, data: { file_name: string; content?: any; metadata?: any }): Promise<ApiResponse> {
+    const response: AxiosResponse<ApiResponse> = await this.api.post(`/api/asset-files/template/${templateId}/version`, data);
+    return response.data;
+  }
+
+  async getAssetFileVersions(templateId: string, fileName: string): Promise<ApiResponse> {
+    const response: AxiosResponse<ApiResponse> = await this.api.get(`/api/asset-files/template/${templateId}/versions/${encodeURIComponent(fileName)}`);
+    return response.data;
+  }
+
+  async deactivateAssetFile(assetFileId: string): Promise<ApiResponse> {
+    const response: AxiosResponse<ApiResponse> = await this.api.delete(`/api/asset-files/${assetFileId}`);
     return response.data;
   }
 }

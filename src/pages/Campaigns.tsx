@@ -7,8 +7,9 @@ import { Organization } from '../types/organization';
 import { Template } from '../types/template';
 import { Audience, CampaignAudience } from '../types/audience';
 import { Plus, Search, Edit, Send, Pause, Play, X, Check, Trash2 } from 'lucide-react';
+import { toast } from 'react-toastify';
 
-type Status = 'DRAFT' | 'PENDING' | 'APPROVED' | 'RUNNING' | 'PAUSED' | 'CANCELLED' | 'COMPLETED';
+type Status = 'DRAFT' | 'PENDING' | 'APPROVED' | 'ASSET_GENERATION' | 'ASSET_GENERATED' | 'READY_TO_LAUNCH' | 'RUNNING' | 'PAUSED' | 'CANCELLED' | 'COMPLETED';
 
 const Campaigns: React.FC = () => {
   const { user } = useAuth();
@@ -103,6 +104,13 @@ const Campaigns: React.FC = () => {
   const loadCampaigns = async () => {
     try {
       setLoading(true);
+      // Many backends do not expose a global campaigns list route.
+      // For super/system admins, require an organization to be selected before fetching.
+      if (!effectiveOrgId && canAdminAllOrgs) {
+        setCampaigns([]);
+        setTotalPages(1);
+        return;
+      }
       const res = await api.getCampaigns(currentPage, 10, effectiveOrgId || undefined, status || undefined);
       if (res.success && res.data) {
         setCampaigns(res.data.campaigns);
@@ -116,10 +124,22 @@ const Campaigns: React.FC = () => {
   };
 
   const loadStats = async () => {
-    try {
-      const res = await api.getCampaignStatistics(effectiveOrgId || undefined);
-      if (res.success && res.data) setStats(res.data);
-    } catch (e) {}
+    // Compute statistics client-side from the campaigns we already fetched
+    if (!campaigns || campaigns.length === 0) { setStats(null); return; }
+    const toKey = (s: string) => String(s || '').toUpperCase();
+    const counts = campaigns.reduce((acc: any, c) => {
+      const s = toKey((c as any).status);
+      acc.total_campaigns += 1;
+      if (s === 'DRAFT') acc.draft += 1;
+      else if (s === 'PENDING') acc.pending += 1;
+      else if (s === 'APPROVED') acc.approved += 1;
+      else if (s === 'RUNNING') acc.running += 1;
+      else if (s === 'PAUSED') acc.paused += 1;
+      else if (s === 'CANCELLED') acc.cancelled += 1;
+      else if (s === 'COMPLETED') acc.completed += 1;
+      return acc;
+    }, { total_campaigns: 0, draft: 0, pending: 0, approved: 0, running: 0, paused: 0, cancelled: 0, completed: 0 });
+    setStats(counts);
   };
 
   const filtered = useMemo(() => {
@@ -195,12 +215,39 @@ const Campaigns: React.FC = () => {
     }
   };
 
-  const submitCampaign = async (id: string) => { await api.submitCampaign(id); loadCampaigns(); };
-  const approveCampaign = async (id: string) => { await api.approveCampaign(id); loadCampaigns(); };
+  const submitCampaign = async (id: string) => {
+    try {
+      await api.submitCampaign(id);
+      toast.success('Campaign submitted for approval');
+      await loadCampaigns();
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || e?.message || 'Failed to submit campaign';
+      toast.error(msg);
+    }
+  };
+  const approveCampaign = async (id: string) => {
+    // Find the campaign to extract template_id
+    const camp = campaigns.find((c) => ((c as any).id || (c as any).campaign_id) === id) || null;
+    try {
+      setLoading(true);
+      await api.approveCampaign(id);
+      // After approval, generate assets for the associated template
+      const tplId = camp?.template_id || (camp as any)?.template?._id || (camp as any)?.template?.id;
+      if (tplId) {
+        await api.generateAssets(String(tplId));
+      }
+    } catch (e: any) {
+      setError(e?.response?.data?.message || 'Failed to approve or generate assets');
+    } finally {
+      // Refresh campaigns which should reflect READY_TO_LAUNCH after assets are generated (per backend lifecycle)
+      await loadCampaigns();
+      setLoading(false);
+    }
+  };
   const rejectCampaign = async (id: string) => { const reason = prompt('Rejection reason?') || ''; await api.rejectCampaign(id, reason); loadCampaigns(); };
   const startCampaign = async (id: string) => { await api.startCampaign(id); loadCampaigns(); loadStats(); };
   const pauseCampaign = async (id: string) => { await api.pauseCampaign(id); loadCampaigns(); };
-  const cancelCampaign = async (id: string) => { await api.cancelCampaign(id); loadCampaigns(); loadStats(); };
+  const deleteCampaign = async (id: string) => { await api.deleteCampaign(id); loadCampaigns(); loadStats(); };
 
   const openAudience = async (c: Campaign) => {
     setSelected(c);
@@ -222,9 +269,23 @@ const Campaigns: React.FC = () => {
 
   const handleAddAudience = async () => {
     if (!selected) return;
-    const ids = audienceIdsInput.split(',').map(s => s.trim()).filter(Boolean);
-    if (ids.length === 0) return;
-    await api.addAudienceToCampaign(selected._id, ids);
+    const tokens = audienceIdsInput.split(',').map(s => s.trim()).filter(Boolean);
+    if (tokens.length === 0) return;
+    // Support both formats:
+    // 1) name:msisdn
+    // 2) msisdn (name will be auto-generated)
+    const now = Date.now();
+    const list = tokens.map((t, idx) => {
+      if (t.includes(':')) {
+        const [nameRaw, msisdnRaw] = t.split(':');
+        const name = (nameRaw || '').trim() || `Audience ${now}-${idx}`;
+        const msisdn = (msisdnRaw || '').trim();
+        return { name, msisdn };
+      }
+      return { name: `Audience ${now}-${idx}`, msisdn: t };
+    }).filter(item => item.msisdn);
+    if (list.length === 0) return;
+    await api.addAudienceToCampaign(selected._id, list);
     await loadCampaignAudience(selected._id, audiencePage);
     setAudienceIdsInput('');
   };
@@ -318,9 +379,14 @@ const Campaigns: React.FC = () => {
               {loading ? (
                 <tr><td colSpan={6} className="px-6 py-4 text-center text-gray-500">Loading...</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={6} className="px-6 py-4 text-center text-gray-500">Select Organization</td></tr>
+                <tr>
+                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                    {(canAdminAllOrgs && !effectiveOrgId) ? 'Select Organization' : 'No campaigns found'}
+                  </td>
+                </tr>
               ) : filtered.map(c => {
                 const cid = (c as any).id || (c as any).campaign_id; // prefer UUID fields
+                const s = String((c as any).status || '').toUpperCase();
                 return (
                 <tr key={cid} className="hover:bg-gray-50">
                   <td className="px-6 py-4 text-sm font-medium text-gray-900">
@@ -334,40 +400,43 @@ const Campaigns: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 text-sm">
                     <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                      c.status === 'RUNNING' ? 'bg-green-100 text-green-800' :
-                      c.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                      c.status === 'APPROVED' ? 'bg-blue-100 text-blue-800' :
-                      c.status === 'PAUSED' ? 'bg-orange-100 text-orange-800' :
-                      c.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
-                      c.status === 'COMPLETED' ? 'bg-gray-200 text-gray-800' :
+                      s === 'RUNNING' ? 'bg-green-100 text-green-800' :
+                      s === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                      s === 'APPROVED' ? 'bg-blue-100 text-blue-800' :
+                      s === 'ASSET_GENERATION' ? 'bg-indigo-100 text-indigo-800' :
+                      s === 'ASSET_GENERATED' ? 'bg-teal-100 text-teal-800' :
+                      s === 'READY_TO_LAUNCH' ? 'bg-emerald-100 text-emerald-800' :
+                      s === 'PAUSED' ? 'bg-orange-100 text-orange-800' :
+                      s === 'CANCELLED' ? 'bg-red-100 text-red-800' :
+                      s === 'COMPLETED' ? 'bg-gray-200 text-gray-800' :
                       'bg-gray-100 text-gray-800'
-                    }`}>{c.status.toLowerCase()}</span>
+                    }`}>{s.toLowerCase()}</span>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-700">{c.template?.name || '-'}</td>
                   <td className="px-6 py-4 text-sm text-gray-700">{c.scheduled_at ? new Date(c.scheduled_at).toLocaleString() : '-'}</td>
                   <td className="px-6 py-4 text-sm text-gray-500">{new Date(c.updated_at).toLocaleString()}</td>
                   <td className="px-6 py-4 text-right text-sm">
                     <div className="flex items-center justify-end space-x-2">
-                      {c.status === 'draft'&& (
+                      {s === 'DRAFT' && (
                         <button onClick={() => submitCampaign(cid)} className="px-3 py-2 text-blue-600 hover:bg-blue-50 rounded inline-flex items-center" title="Submit">
                           <Send className="h-4 w-4" />
                           <span className="ml-1 text-sm">Submit</span>
                         </button>
                       )}
-                      {(user?.role === 'super_admin' || user?.role === 'system_admin') && c.status === 'PENDING' && (
+                      {(user?.role === 'super_admin' || user?.role === 'system_admin') && s === 'PENDING' && (
                         <>
                           <button onClick={() => approveCampaign(cid)} className="p-2 text-green-600 hover:bg-green-50 rounded" title="Approve"><Check className="h-4 w-4" /></button>
                           <button onClick={() => rejectCampaign(cid)} className="p-2 text-red-600 hover:bg-red-50 rounded" title="Reject"><X className="h-4 w-4" /></button>
                         </>
                       )}
-                      {c.status === 'APPROVED' && (
+                      {s === 'READY_TO_LAUNCH' && (
                         <button onClick={() => startCampaign(cid)} className="p-2 text-green-600 hover:bg-green-50 rounded" title="Start"><Play className="h-4 w-4" /></button>
                       )}
-                      {c.status === 'RUNNING' && (
+                      {s === 'RUNNING' && (
                         <button onClick={() => pauseCampaign(cid)} className="p-2 text-orange-600 hover:bg-orange-50 rounded" title="Pause"><Pause className="h-4 w-4" /></button>
                       )}
-                      {c.status !== 'COMPLETED' && c.status !== 'CANCELLED' && (
-                        <button onClick={() => cancelCampaign(cid)} className="p-2 text-red-600 hover:bg-red-50 rounded" title="Cancel"><Trash2 className="h-4 w-4" /></button>
+                      {s !== 'COMPLETED' && s !== 'CANCELLED' && (
+                        <button onClick={() => deleteCampaign(cid)} className="p-2 text-red-600 hover:bg-red-50 rounded" title="Cancel"><Trash2 className="h-4 w-4" /></button>
                       )}
                       <button onClick={() => openEdit(c)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded" title="Edit"><Edit className="h-4 w-4" /></button>
                     </div>
@@ -485,9 +554,9 @@ const Campaigns: React.FC = () => {
               <button onClick={() => setAudienceOpen(false)} className="px-3 py-1 bg-gray-100 rounded">Close</button>
             </div>
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700">Add Audience by IDs (comma-separated)</label>
+              <label className="block text-sm font-medium text-gray-700">Add Audience (comma-separated: name:msisdn or msisdn)</label>
               <div className="flex gap-2 mt-1">
-                <input value={audienceIdsInput} onChange={e => setAudienceIdsInput(e.target.value)} className="flex-1 border rounded px-3 py-2" placeholder="id1, id2, ..." />
+                <input value={audienceIdsInput} onChange={e => setAudienceIdsInput(e.target.value)} className="flex-1 border rounded px-3 py-2" placeholder="John:919876543210, Jane:919999999999 or 919876543210" />
                 <button onClick={handleAddAudience} className="px-4 py-2 bg-whatsapp-500 text-white rounded">Add</button>
               </div>
             </div>

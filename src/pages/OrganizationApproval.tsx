@@ -18,6 +18,21 @@ const OrganizationApproval: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [pendingOnly, setPendingOnly] = useState(false);
 
+  // Approve modal state
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [approveLoading, setApproveLoading] = useState(false);
+  const [approveTemplateId, setApproveTemplateId] = useState<string | null>(null);
+  const [approveBodyTemplate, setApproveBodyTemplate] = useState<string>('');
+  const [approveParams, setApproveParams] = useState<Record<string, string>>({});
+  const [approvePreview, setApprovePreview] = useState<string>('');
+  const [approveExamples, setApproveExamples] = useState<string[]>([]);
+  const [approvePlaceholders, setApprovePlaceholders] = useState<string[]>([]);
+
+  // Keep approvePreview unused (we show raw body), but clear consistently
+  useEffect(() => {
+    setApprovePreview('');
+  }, [approveBodyTemplate, approveParams]);
+
   const canPrev = page > 1;
   const canNext = page < totalPages;
 
@@ -80,17 +95,88 @@ const OrganizationApproval: React.FC = () => {
     }
   };
 
+  // Replace placeholders like {{1}}, {{2}} in a text using params
+  const renderWithParams = (text: string, params: Record<string, string>) => {
+    if (!text) return '';
+    return text.replace(/\{\{\s*(\d+)\s*\}\}/g, (_, k: string) => {
+      const v = params?.[k];
+      return typeof v === 'string' ? v : `{{${k}}}`;
+    });
+  };
+
+  // Extract BODY text and example values from components with flexible shapes
+  const extractBodyData = (components: any): { bodyText: string; exampleValues: string[] } => {
+    const list = Array.isArray(components) ? components : [];
+    const body = list.find((c: any) => {
+      const t = (c?.type || c?.component_type || c?.name || '').toString().toUpperCase();
+      return t === 'BODY';
+    }) || {};
+    const bodyText = body?.text || body?.body_text || body?.data?.text || '';
+    const ex = body?.example || body?.examples || body?.data?.example || {};
+    // WhatsApp often returns example.body_text as array of arrays; pick first row
+    let vals: any = ex?.body_text ?? ex?.body ?? ex?.values;
+    let exampleValues: string[] = [];
+    if (Array.isArray(vals)) {
+      if (Array.isArray(vals[0])) exampleValues = (vals[0] as any[]).map((v) => String(v));
+      else exampleValues = vals.map((v: any) => String(v));
+    } else if (typeof vals === 'string') {
+      exampleValues = [vals];
+    }
+    return { bodyText: String(bodyText || ''), exampleValues };
+  };
+
+  const openApproveModal = async (templateRow: any) => {
+    try {
+      const ident = getTemplateIdentifier(templateRow);
+      if (!ident) { setError('Template UUID is missing or invalid on this item'); return; }
+      setApproveLoading(true);
+      setError(null);
+      // Fetch full template to get components with examples
+      const res: any = await apiService.getTemplate(ident);
+      const payload = res?.data ?? res?.template ?? res?.result ?? res;
+      const components = payload?.components
+        ?? payload?.data?.components
+        ?? payload?.template?.components
+        ?? payload?.result?.components
+        ?? [];
+      const { bodyText, exampleValues } = extractBodyData(components);
+
+      // Compute placeholder order from BODY text, like {{1}}, {{2}}, ...
+      const matches = Array.from(String(bodyText || '').matchAll(/\{\{\s*(\d+)\s*\}\}/g));
+      const placeholderOrder = Array.from(new Set(matches.map((m) => String(m[1]))));
+
+      // Build default params aligned to placeholder order using example values
+      const params: Record<string, string> = {};
+      placeholderOrder.forEach((ph, i) => {
+        params[ph] = exampleValues[i] ?? '';
+      });
+
+      setApproveTemplateId(ident);
+      setApproveBodyTemplate(bodyText);
+      setApproveParams(params);
+      setApprovePreview('');
+      setApproveExamples(exampleValues);
+      setApprovePlaceholders(placeholderOrder);
+      setShowApproveModal(true);
+    } catch (e: any) {
+      setError(e?.response?.data?.message || e.message || 'Failed to open approval modal');
+    } finally {
+      setApproveLoading(false);
+    }
+  };
+
   const handleApprove = async (templateId: string) => {
     try {
-      const body = {
-        parameters: {
-          '1': 'customer_name',
-          '2': 'order_number',
-          '3': 'pickup_location',
-        },
-      };
+      const body = { parameters: approveParams };
       await apiService.approveAdminTemplates(templateId, body);
       await fetchTemplates();
+      setShowApproveModal(false);
+      setApproveTemplateId(null);
+      setApproveParams({});
+      setApproveBodyTemplate('');
+      setApprovePreview('');
+      setApproveExamples([]);
+      setApprovePlaceholders([]);
     } catch (e: any) {
       setError(e?.response?.data?.message || e.message || 'Approve failed');
     }
@@ -110,6 +196,7 @@ const OrganizationApproval: React.FC = () => {
   };
 
   return (
+    <>
     <div className="p-6">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
@@ -202,9 +289,7 @@ const OrganizationApproval: React.FC = () => {
                         {(user?.role === 'super_admin' || user?.role === 'system_admin') && (
                         <button
                           onClick={() => {
-                            const ident = getTemplateIdentifier(t);
-                            if (!ident) { setError('Template UUID is missing or invalid on this item'); return; }
-                            handleApprove(ident);
+                            openApproveModal(t);
                           }}
                           className="inline-flex items-center px-3 py-1.5 rounded-md bg-green-600 text-white hover:bg-green-700"
                         >
@@ -265,7 +350,85 @@ const OrganizationApproval: React.FC = () => {
         </div>
       </div>
     </div>
-  );
+
+    {/* Approve Modal UI */}
+    {showApproveModal && (
+      <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity flex items-center justify-center" aria-hidden="true" onClick={() => setShowApproveModal(false)}>
+        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:align-middle sm:max-w-lg sm:w-full" role="dialog" aria-modal="true" aria-labelledby="modal-headline" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4 max-h-[70vh] overflow-y-auto">
+            <div className="sm:flex sm:items-start">
+              <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-green-100 sm:mx-0 sm:h-10 sm:w-10">
+                <CheckCircle2 className="h-6 w-6 text-green-600" />
+              </div>
+              <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-headline">Approve Template</h3>
+                <div className="mt-2">
+                  <p className="text-sm text-gray-500">Please review and validate the template parameters.</p>
+                </div>
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700">Body Template (with placeholders):</label>
+                  <div className="mt-1 whitespace-pre-wrap text-gray-900">{approveBodyTemplate}</div>
+                </div>
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700">Example Context (example.body_text):</label>
+                  {approveExamples && approveExamples.length > 0 ? (
+                    <ul className="mt-1 list-disc list-inside text-sm text-gray-800">
+                      {approveExamples.map((v, i) => (
+                        <li key={i}>{v}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="mt-1 text-sm text-gray-500">No example values found.</div>
+                  )}
+                </div>
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700">Placeholder Mappings:</label>
+                  <div className="mt-1 space-y-2">
+                    {approvePlaceholders.length > 0 ? (
+                      approvePlaceholders.map((ph, idx) => {
+                        const exampleVal = approveExamples[idx] ?? '';
+                        return (
+                          <div key={ph} className="flex items-center gap-3">
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-gray-100 text-gray-800">{'{{' + ph + '}}'}</span>
+                            <input
+                              type="text"
+                              value={approveParams[ph] ?? ''}
+                              onChange={(e) => setApproveParams({ ...approveParams, [ph]: e.target.value })}
+                              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-whatsapp-500 focus:ring-whatsapp-500"
+                            />
+                            <span className="text-xs text-gray-500">Example: {exampleVal}</span>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="text-sm text-gray-500">No placeholders detected in body.</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <button
+              type="button"
+              className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:ml-3 sm:w-auto sm:text-sm"
+              onClick={() => handleApprove(approveTemplateId as string)}
+            >
+              Approve
+            </button>
+            <button
+              type="button"
+              className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+              onClick={() => setShowApproveModal(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
+  );  
 };
 
 export default OrganizationApproval;

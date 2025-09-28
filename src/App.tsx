@@ -13,6 +13,7 @@ import Campaigns from './pages/Campaigns';
 import Audience from './pages/Audience';
 import CampaignDetails from './pages/CampaignDetails';
 import ApprovalCampaign from './pages/ApprovalCampaign';
+import AssetFiles from './pages/AssetFiles';
 
 function App() {
   return (
@@ -81,6 +82,16 @@ function App() {
                 <ProtectedRoute requiredRoles={['super_admin', 'system_admin', 'organization_admin', 'user']}>
                   <Layout>
                     <Campaigns />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/asset-files"
+              element={
+                <ProtectedRoute requiredRoles={['super_admin', 'system_admin', 'organization_admin', 'user']}>
+                  <Layout>
+                    <AssetFiles />
                   </Layout>
                 </ProtectedRoute>
               }

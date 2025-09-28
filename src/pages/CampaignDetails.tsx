@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { Campaign } from '../types/campaign';
 import { CampaignAudience, CampaignAudienceListResponse } from '../types/audience';
+import { toast } from 'react-toastify';
+import * as XLSX from 'xlsx';
 
 const CampaignDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -16,11 +18,22 @@ const CampaignDetails: React.FC = () => {
 
   // Add Audience Modal state
   const [showAddAudience, setShowAddAudience] = useState(false);
-  const [addName, setAddName] = useState('');
+  // Bulk Add Audience state
+  const [showBulkAdd, setShowBulkAdd] = useState(false);
+  const [bulkRows, setBulkRows] = useState<Array<{ name: string; msisdn: string; attributes: Record<string,string> }>>([]);
+  const [bulkConfirmed, setBulkConfirmed] = useState(false);
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const [bulkErrors, setBulkErrors] = useState<Array<Record<string, string>>> ([]); // per-row field->error
+  // Only MSISDN and template params shown in form (name auto-generated)
   const [addMsisdn, setAddMsisdn] = useState('');
-  const [addAttributes, setAddAttributes] = useState(''); // key=value per line or JSON
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // Template-driven audience params
+  const [tplPlaceholders, setTplPlaceholders] = useState<string[]>([]);
+  const [tplExamples, setTplExamples] = useState<string[]>([]);
+  const [tplParams, setTplParams] = useState<Record<string, string>>({});
+  const [tplLabels, setTplLabels] = useState<Record<string, string>>({}); // maps numeric placeholder (e.g., '1') -> label (e.g., 'Name')
 
   const loadCampaign = async () => {
     if (!id) return;
@@ -31,9 +44,25 @@ const CampaignDetails: React.FC = () => {
         const data: any = res.data as any;
         const campaignObj = data.campaign || data.item || data.result || data;
         setCampaign(campaignObj);
+        // Preload template params when campaign loads
+        try {
+          const tid = (campaignObj as any)?.template_id || (campaignObj as any)?.template?.id || (campaignObj as any)?.template?.template_id;
+          if (tid) {
+            await prepareTemplateFields(tid);
+          } else {
+            // reset if no template id
+            setTplPlaceholders([]);
+            setTplExamples([]);
+            setTplParams({});
+          }
+        } catch {
+          // ignore template preload errors
+        }
       }
     } catch (e: any) {
-      setError(e?.response?.data?.message || 'Failed to load campaign');
+      const msg = e?.response?.data?.message || 'Failed to load campaign';
+      setError(msg);
+      toast.error(msg);
     }
   };
 
@@ -56,7 +85,9 @@ const CampaignDetails: React.FC = () => {
         setTotalPages(1);
       }
     } catch (e: any) {
-      setError(e?.response?.data?.message || 'Failed to load campaign audience');
+      const msg = e?.response?.data?.message || 'Failed to load campaign audience';
+      setError(msg);
+      toast.error(msg);
       setAudience([]);
       setTotalPages(1);
     } finally {
@@ -73,6 +104,219 @@ const CampaignDetails: React.FC = () => {
     loadAudience(page);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, page]);
+
+  // Fetch and compute template placeholders/examples
+  const prepareTemplateFields = async (templateId: string) => {
+    try {
+      const res: any = await api.getTemplate(templateId);
+      const payload = res?.data ?? res?.template ?? res?.result ?? res;
+      const components = payload?.components
+        ?? payload?.data?.components
+        ?? payload?.template?.components
+        ?? payload?.result?.components
+        ?? [];
+      // Extract BODY text and examples
+      const list = Array.isArray(components) ? components : [];
+      const body = list.find((c: any) => {
+        const t = (c?.type || c?.component_type || c?.name || '').toString().toUpperCase();
+        return t === 'BODY';
+      }) || {};
+      const bodyText: string = body?.text || body?.body_text || body?.data?.text || '';
+      // Collect parameter labels from template JSON if present
+      const paramLabelsSource = payload?.parameters
+        ?? payload?.data?.parameters
+        ?? payload?.template?.parameters
+        ?? payload?.result?.parameters
+        ?? body?.parameters
+        ?? null;
+      const labels: Record<string, string> = {};
+      if (paramLabelsSource && typeof paramLabelsSource === 'object' && !Array.isArray(paramLabelsSource)) {
+        Object.entries(paramLabelsSource).forEach(([k, v]) => {
+          if (/^\d+$/.test(String(k)) && typeof v === 'string') labels[String(k)] = v as string;
+        });
+      }
+      const ex = body?.example || body?.examples || body?.data?.example || {};
+      let vals: any = ex?.body_text ?? ex?.body ?? ex?.values;
+      let exampleValues: string[] = [];
+      if (Array.isArray(vals)) {
+        if (Array.isArray(vals[0])) exampleValues = (vals[0] as any[]).map((v) => String(v));
+        else exampleValues = vals.map((v: any) => String(v));
+      } else if (typeof vals === 'string') {
+        exampleValues = [vals];
+      }
+      // Compute placeholders order from body text
+      const matches = Array.from(String(bodyText || '').matchAll(/\{\{\s*(\d+)\s*\}\}/g));
+      const placeholderOrder = Array.from(new Set(matches.map((m) => String(m[1]))));
+      // Build params with keys '{{n}}'
+      const params: Record<string, string> = {};
+      placeholderOrder.forEach((ph, i) => {
+        params[`{{${ph}}}`] = exampleValues[i] ?? '';
+      });
+      setTplPlaceholders(placeholderOrder);
+      setTplExamples(exampleValues);
+      setTplParams(params);
+      setTplLabels(labels);
+    } catch (e) {
+      // If fetching template fails, just clear
+      setTplPlaceholders([]);
+      setTplExamples([]);
+      setTplParams({});
+      setTplLabels({});
+    }
+  };
+
+  const openAddAudience = async () => {
+    setShowAddAudience(true);
+    try {
+      const tid = (campaign as any)?.template_id || (campaign as any)?.template?.id || (campaign as any)?.template?.template_id;
+      if (tid) await prepareTemplateFields(tid);
+    } catch {}
+  };
+
+  // Bulk Add: open and prepare template fields
+  const openBulkAddAudience = async () => {
+    setShowBulkAdd(true);
+    try {
+      const tid = (campaign as any)?.template_id || (campaign as any)?.template?.id || (campaign as any)?.template?.template_id;
+      if (tid) await prepareTemplateFields(tid);
+    } catch {}
+  };
+
+  // Compute attribute header keys for bulk based on template labels or fallbacks
+  const templateAttributeKeys = useMemo(() => {
+    if (!tplPlaceholders || tplPlaceholders.length === 0) return [] as string[];
+    const keys = tplPlaceholders.map((ph) => (tplLabels && tplLabels[ph]) ? String(tplLabels[ph]).trim() : `param_${ph}`);
+    // Remove any 'name' key to avoid duplication with the top-level name column
+    return keys.filter(k => k.toLowerCase() !== 'name');
+  }, [tplPlaceholders, tplLabels]);
+
+  // Validate a single row
+  const validateBulkRow = (row: { name: string; msisdn: string; attributes: Record<string,string> }) => {
+    const errs: Record<string,string> = {};
+    if (!row.name || !row.name.trim()) errs.name = 'Required';
+    if (!row.msisdn || !row.msisdn.trim()) errs.msisdn = 'Required';
+    // Require all template attribute keys if present
+    templateAttributeKeys.forEach(k => {
+      if (typeof row.attributes?.[k] === 'undefined' || String(row.attributes[k]).trim() === '') errs[k] = 'Required';
+    });
+    return errs;
+  };
+
+  // Create and download demo Excel
+  const downloadDemoExcel = () => {
+    try {
+      const headers = ['name', 'msisdn', ...templateAttributeKeys];
+      const sample1: any = { name: 'Alice Johnson', msisdn: '+1234567890' };
+      const sample2: any = { name: 'Bob Wilson', msisdn: '+1234567892' };
+      templateAttributeKeys.forEach((k, idx) => {
+        sample1[k] = `example_${idx+1}_A`;
+        sample2[k] = `example_${idx+1}_B`;
+      });
+      const wsData = [headers, ...[sample1, sample2].map(obj => headers.map(h => obj[h] ?? ''))];
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'BulkAudience');
+      XLSX.writeFile(wb, 'bulk_audience_demo.xlsx');
+    } catch (e:any) {
+      toast.error(e?.message || 'Failed to generate demo file');
+    }
+  };
+
+  // Handle file upload and parse
+  const handleBulkFileUpload = async (file: File) => {
+    setBulkUploading(true);
+    try {
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const json: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      const rows: Array<{ name: string; msisdn: string; attributes: Record<string,string> }> = [];
+      json.forEach((rowObj) => {
+        // Map headers case-insensitively for name and msisdn
+        const normEntries = Object.entries(rowObj).map(([k, v]) => [String(k).trim(), String(v ?? '').trim()]) as [string,string][];
+        const getVal = (key: string) => {
+          const found = normEntries.find(([k]) => k.toLowerCase() === key.toLowerCase());
+          return found ? found[1] : '';
+        };
+        const name = getVal('name');
+        const msisdn = getVal('msisdn');
+        const attributes: Record<string,string> = {};
+        // For attributes, use exact header names (excluding name/msisdn) as keys
+        normEntries.forEach(([k, v]) => {
+          if (/^name$/i.test(k) || /^msisdn$/i.test(k)) return;
+          if (v) attributes[k] = v;
+        });
+        rows.push({ name, msisdn, attributes });
+      });
+      // Validate rows and set errors
+      const errs = rows.map(r => validateBulkRow(r));
+      setBulkErrors(errs);
+      setBulkRows(rows);
+      setBulkConfirmed(false);
+    } catch (e:any) {
+      toast.error(e?.message || 'Failed to parse file');
+    } finally {
+      setBulkUploading(false);
+    }
+  };
+
+  const onChangeBulkCell = (rowIdx: number, key: string, value: string, isAttribute: boolean) => {
+    setBulkRows(prev => {
+      const next = [...prev];
+      const r = { ...next[rowIdx] };
+      if (isAttribute) {
+        r.attributes = { ...r.attributes, [key]: value };
+      } else {
+        (r as any)[key] = value;
+      }
+      next[rowIdx] = r;
+      return next;
+    });
+    // Re-validate this row
+    setBulkErrors(prev => {
+      const next = [...prev];
+      next[rowIdx] = validateBulkRow({ ...bulkRows[rowIdx], [key]: value } as any);
+      return next;
+    });
+  };
+
+  const confirmBulk = () => {
+    // Final validation before freezing
+    const errs = bulkRows.map(r => validateBulkRow(r));
+    setBulkErrors(errs);
+    const hasAnyError = errs.some(er => Object.keys(er).length > 0);
+    if (hasAnyError) {
+      toast.error('Please fix required fields highlighted in red before confirming');
+      return;
+    }
+    setBulkConfirmed(true);
+  };
+
+  const submitBulk = async () => {
+    try {
+      if (!id) throw new Error('Invalid campaign ID');
+      if (!bulkConfirmed) { toast.info('Please confirm the data before submitting'); return; }
+      // Prepare payload: only include non-empty attributes
+      const payload = bulkRows.map(r => {
+        const attrs: Record<string,string> = {};
+        Object.entries(r.attributes || {}).forEach(([k, v]) => { if (String(v).trim()) attrs[k] = String(v).trim(); });
+        // Top-level name should mirror attributes.name if present; otherwise use row.name
+        const topName = (typeof attrs['name'] === 'string' && attrs['name'].trim()) ? attrs['name'].trim() : r.name;
+        // Ensure backend-required attributes.name is present (no duplicate column in UI)
+        if (!attrs['name'] && topName) attrs['name'] = topName;
+        return { name: topName, msisdn: r.msisdn, attributes: attrs };
+      });
+      await api.addAudienceToCampaign(id, payload);
+      toast.success('Bulk audience submitted');
+      setShowBulkAdd(false);
+      setBulkRows([]);
+      setBulkErrors([]);
+      setBulkConfirmed(false);
+      await loadAudience(page);
+    } catch (e:any) {
+      toast.error(e?.response?.data?.message || e?.message || 'Failed to submit bulk audience');
+    }
+  };
 
   // Support multiple possible backend field names
   const scheduledAt = (campaign as any)?.scheduled_at
@@ -135,29 +379,62 @@ const CampaignDetails: React.FC = () => {
     setSubmitError(null);
     if (!id) { setSubmitError('Invalid campaign ID.'); return; }
     if (!campaign?.organization_id) { setSubmitError('Missing organization for this campaign.'); return; }
-    if (!addName || !addMsisdn) { setSubmitError('Name and MSISDN are required.'); return; }
+    // Only template parameters and msisdn are shown; name is generated
     setSubmitting(true);
     try {
-      const attributes = parseAttributes(addAttributes);
-      // Create master audience record for the organization
-      const body: any = { name: addName, msisdn: addMsisdn, attributes };
+      // Build attributes strictly from user-entered values mapped to human-readable labels.
+      // Rules:
+      // - Use placeholder label (from tplLabels) if available; otherwise a stable key like param_<n>.
+      // - Do NOT include raw placeholder keys like {{1}}.
+      // - Do NOT include example text as keys or any duplicates.
+      // - Only include entries where the user provided a non-empty value (no example fallbacks).
+      const attributes: Record<string, any> = {};
+      if (tplPlaceholders.length > 0) {
+        tplPlaceholders.forEach((ph) => {
+          const keyTpl = `{{${ph}}}`;
+          const label = (tplLabels && tplLabels[ph]) ? String(tplLabels[ph]).trim() : `param_${ph}`;
+          const rawVal = (tplParams && typeof tplParams[keyTpl] !== 'undefined') ? String(tplParams[keyTpl]) : '';
+          const val = rawVal.trim();
+          if (val) {
+            // Only set if not already set to avoid duplicates
+            if (typeof attributes[label] === 'undefined') {
+              attributes[label] = val;
+            }
+          }
+        });
+      }
+      // Backend currently validates name and msisdn; provide minimal defaults silently
+      const defaultName = `Audience ${Date.now()}`;
+      // Use a generic 12-digit MSISDN with country code prefix (adjust if your backend enforces a specific format)
+      const defaultMsisdn = '910000000000';
+      // Create master audience record for the organization with required fields
+      const userProvidedName = typeof attributes['name'] === 'string' ? String(attributes['name']).trim() : '';
+      const finalName = userProvidedName || defaultName;
+      const body: any = { name: finalName, msisdn: addMsisdn?.trim() || defaultMsisdn, attributes };
       const createRes: any = await api.createMasterAudienceRecord(campaign.organization_id, body);
       const data: any = createRes?.data ?? createRes;
       const aud = data?.audience || data?.item || data?.result || data;
-      const audienceId = aud?.id || aud?._id || aud?.audience_id || data?.id || data?._id;
-      if (!audienceId) {
-        throw new Error('Could not determine created audience ID');
+      // Build audience object required by backend (name, msisdn, attributes)
+      const audienceObj = {
+        name: aud?.name || finalName,
+        msisdn: aud?.msisdn || aud?.phone_number || body.msisdn,
+        attributes,
+      };
+      if (!audienceObj.msisdn) {
+        throw new Error('Missing msisdn for audience');
       }
-      // Link to campaign using addAudienceToCampaign endpoint
-      await api.addAudienceToCampaign(id, [audienceId]);
+      // Link to campaign using addAudienceToCampaign endpoint with object payload
+      await api.addAudienceToCampaign(id, [audienceObj]);
       // Refresh list and close modal
       await loadAudience(page);
       setShowAddAudience(false);
-      setAddName('');
       setAddMsisdn('');
-      setAddAttributes('');
+      toast.success('Audience added to campaign');
+      // nothing else to reset
     } catch (e: any) {
-      setSubmitError(e?.response?.data?.message || e?.message || 'Failed to add audience to campaign');
+      const msg = e?.response?.data?.message || e?.message || 'Failed to add audience to campaign';
+      setSubmitError(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
@@ -205,7 +482,10 @@ const CampaignDetails: React.FC = () => {
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="p-4 border-b border-gray-200 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900">Audience</h2>
-          <button onClick={() => setShowAddAudience(true)} className="px-3 py-2 bg-whatsapp-500 text-white rounded hover:bg-whatsapp-600">Add Audience</button>
+          <div className="flex items-center gap-2">
+            <button onClick={openBulkAddAudience} className="px-3 py-2 border border-gray-300 rounded hover:bg-gray-50">Bulk Add Audience</button>
+            <button onClick={openAddAudience} className="px-3 py-2 bg-whatsapp-500 text-white rounded hover:bg-whatsapp-600">Add Audience</button>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
@@ -258,29 +538,154 @@ const CampaignDetails: React.FC = () => {
       {/* Add Audience Modal */}
       {showAddAudience && (
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-          <div className="bg-white w-full max-w-lg rounded-lg shadow p-6">
+          <div className="bg-white w-full max-w-lg rounded-lg shadow p-6 max-h-[85vh] flex flex-col">
             <h3 className="text-lg font-semibold mb-4">Add Audience to Campaign</h3>
             {submitError && (
               <div className="mb-3 p-2 bg-red-50 text-red-700 rounded border border-red-200 text-sm">{submitError}</div>
             )}
-            <div className="space-y-4">
+            <div className="space-y-4 overflow-y-auto pr-2 -mr-2 flex-1">
+              {/* MSISDN field */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">Name</label>
-                <input value={addName} onChange={e => setAddName(e.target.value)} className="mt-1 w-full border rounded px-3 py-2" placeholder="John Doe" />
+                <label className="block text-sm font-medium text-gray-700">Phone (MSISDN)</label>
+                <input
+                  value={addMsisdn}
+                  onChange={(e) => setAddMsisdn(e.target.value)}
+                  className="mt-1 w-full border rounded px-3 py-2"
+                  placeholder="e.g. 919876543210"
+                />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">MSISDN</label>
-                <input value={addMsisdn} onChange={e => setAddMsisdn(e.target.value)} className="mt-1 w-full border rounded px-3 py-2" placeholder="e.g. 919876543210" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Attributes</label>
-                <textarea value={addAttributes} onChange={e => setAddAttributes(e.target.value)} rows={4} className="mt-1 w-full border rounded px-3 py-2" placeholder={'JSON or key=value per line\ncity=Mumbai\nplan=premium'} />
-                <p className="text-xs text-gray-500 mt-1">Enter JSON or key=value pairs (one per line).</p>
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button onClick={() => { if (!submitting) { setShowAddAudience(false); setSubmitError(null); } }} className="px-4 py-2 bg-gray-100 rounded">Cancel</button>
-                <button onClick={handleSubmitAddAudience} disabled={submitting || !addName || !addMsisdn} className={`px-4 py-2 rounded text-white ${submitting || !addName || !addMsisdn ? 'bg-gray-400 cursor-not-allowed' : 'bg-whatsapp-500 hover:bg-whatsapp-600'}`}>{submitting ? 'Submitting...' : 'Submit'}</button>
-              </div>
+              {/* Dynamic Template Parameters */}
+              {tplPlaceholders.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Template Parameters</label>
+                  <div className="mt-2 space-y-2">
+                    {tplPlaceholders.map((ph, idx) => {
+                      const key = `{{${ph}}}`;
+                      const exampleVal = tplExamples[idx] ?? '';
+                      const label = tplLabels[ph] || `{{${ph}}}`;
+                      return (
+                        <div key={key} className="flex items-center gap-3">
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded bg-gray-100 text-gray-800">{label}</span>
+                          <input
+                            type="text"
+                            value={tplParams[key] ?? ''}
+                            onChange={(e) => setTplParams({ ...tplParams, [key]: e.target.value })}
+                            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-whatsapp-500 focus:ring-whatsapp-500"
+                            placeholder={exampleVal ? `e.g., ${exampleVal}` : 'Enter value'}
+                          />
+                          {exampleVal && <span className="text-xs text-gray-500">Example: {exampleVal}</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 pt-3 border-t mt-4">
+              <button onClick={() => { if (!submitting) { setShowAddAudience(false); setSubmitError(null); } }} className="px-4 py-2 bg-gray-100 rounded">Cancel</button>
+              <button onClick={handleSubmitAddAudience} disabled={submitting} className={`px-4 py-2 rounded text-white ${submitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-whatsapp-500 hover:bg-whatsapp-600'}`}>{submitting ? 'Submitting...' : 'Submit'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Add Audience Modal */}
+      {showBulkAdd && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+          <div className="bg-white w-full max-w-5xl rounded-lg shadow p-6 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Bulk Add Audience</h3>
+              <button onClick={() => { if (!bulkUploading) { setShowBulkAdd(false); setBulkRows([]); setBulkErrors([]); setBulkConfirmed(false); } }} className="px-3 py-1 bg-gray-100 rounded">Close</button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 mb-4">
+              <button onClick={downloadDemoExcel} className="px-3 py-2 border rounded hover:bg-gray-50">Download Demo Excel</button>
+              <label className="inline-flex items-center gap-2">
+                <span className="text-sm text-gray-700">Upload filled Excel</span>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleBulkFileUpload(f); }}
+                  className="block text-sm"
+                />
+              </label>
+              {bulkUploading && <span className="text-sm text-gray-500">Parsing file...</span>}
+            </div>
+
+            {/* Preview Table */}
+            <div className="flex-1 overflow-auto border rounded">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">#</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">name</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">msisdn</th>
+                    {templateAttributeKeys.map((k) => (
+                      <th key={k} className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{k}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {bulkRows.length === 0 ? (
+                    <tr>
+                      <td className="px-4 py-6 text-center text-gray-500" colSpan={3 + templateAttributeKeys.length}>No data uploaded yet</td>
+                    </tr>
+                  ) : bulkRows.map((row, idx) => (
+                    <tr key={idx} className="hover:bg-gray-50">
+                      <td className="px-4 py-2 text-sm text-gray-500">{idx + 1}</td>
+                      <td className="px-4 py-2">
+                        {bulkConfirmed ? (
+                          <span className="text-sm text-gray-900">{row.name}</span>
+                        ) : (
+                          <input
+                            value={row.name}
+                            onChange={(e) => onChangeBulkCell(idx, 'name', e.target.value, false)}
+                            className={`w-44 border rounded px-2 py-1 text-sm ${bulkErrors[idx]?.name ? 'border-red-500' : 'border-gray-300'}`}
+                            placeholder="Full name"
+                          />
+                        )}
+                        {bulkErrors[idx]?.name && <div className="text-xs text-red-600 mt-1">{bulkErrors[idx]?.name}</div>}
+                      </td>
+                      <td className="px-4 py-2">
+                        {bulkConfirmed ? (
+                          <span className="text-sm text-gray-900">{row.msisdn}</span>
+                        ) : (
+                          <input
+                            value={row.msisdn}
+                            onChange={(e) => onChangeBulkCell(idx, 'msisdn', e.target.value, false)}
+                            className={`w-56 border rounded px-2 py-1 text-sm ${bulkErrors[idx]?.msisdn ? 'border-red-500' : 'border-gray-300'}`}
+                            placeholder="+919876543210"
+                          />
+                        )}
+                        {bulkErrors[idx]?.msisdn && <div className="text-xs text-red-600 mt-1">{bulkErrors[idx]?.msisdn}</div>}
+                      </td>
+                      {templateAttributeKeys.map((k) => (
+                        <td key={k} className="px-4 py-2">
+                          {bulkConfirmed ? (
+                            <span className="text-sm text-gray-900">{row.attributes?.[k] || ''}</span>
+                          ) : (
+                            <input
+                              value={row.attributes?.[k] || ''}
+                              onChange={(e) => onChangeBulkCell(idx, k, e.target.value, true)}
+                              className={`w-56 border rounded px-2 py-1 text-sm ${bulkErrors[idx]?.[k] ? 'border-red-500' : 'border-gray-300'}`}
+                              placeholder={k}
+                            />
+                          )}
+                          {bulkErrors[idx]?.[k] && <div className="text-xs text-red-600 mt-1">{bulkErrors[idx]?.[k]}</div>}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-2 pt-4">
+              {!bulkConfirmed && (
+                <button onClick={confirmBulk} className="px-4 py-2 bg-blue-600 text-white rounded">Confirm</button>
+              )}
+              <button onClick={submitBulk} disabled={!bulkConfirmed || bulkRows.length === 0} className={`px-4 py-2 rounded text-white ${(!bulkConfirmed || bulkRows.length === 0) ? 'bg-gray-400 cursor-not-allowed' : 'bg-whatsapp-500 hover:bg-whatsapp-600'}`}>Submit</button>
             </div>
           </div>
         </div>
