@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { RefreshCw, Eye, Layers3, Trash2, PencilLine } from 'lucide-react';
@@ -22,6 +23,8 @@ interface AssetFile {
 
 const AssetFiles: React.FC = () => {
   const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [organizationId, setOrganizationId] = useState<string>('');
@@ -38,12 +41,17 @@ const AssetFiles: React.FC = () => {
   const [showUpdate, setShowUpdate] = useState<boolean>(false);
   const [showVersions, setShowVersions] = useState<boolean>(false);
   const [showCreateVersion, setShowCreateVersion] = useState<boolean>(false);
+  const [showCreateAsset, setShowCreateAsset] = useState<boolean>(false);
 
   const [selected, setSelected] = useState<AssetFile | null>(null);
   const [versions, setVersions] = useState<any[]>([]);
 
   // Update form (generic and tolerant)
   const [updateForm, setUpdateForm] = useState<{ file_name?: string; metadata?: string; content_type?: string }>({});
+
+  // Create Asset form state (UI-only; submission triggers generateAssets)
+  const [createForm, setCreateForm] = useState<{ typeOfContent?: string; file_name?: string; description?: string; version?: string; file_content?: string }>({});
+  const [templateName, setTemplateName] = useState<string>('');
 
   const canAdminAllOrgs = user?.role === 'super_admin' || user?.role === 'system_admin';
   const effectiveOrgId = canAdminAllOrgs ? organizationId : (user?.organization_id || '');
@@ -55,6 +63,33 @@ const AssetFiles: React.FC = () => {
       setOrganizationId(user.organization_id);
     }
   }, [canAdminAllOrgs, user?.organization_id]);
+
+  // Detect create flow via query params
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const shouldCreate = params.get('create') === '1' || params.get('create') === 'true';
+    const tplId = params.get('templateId') || '';
+    if (shouldCreate && tplId) {
+      setTemplateId(tplId);
+      setShowCreateAsset(true);
+    }
+  }, [location.search]);
+
+  // Load template name when create modal is opened
+  useEffect(() => {
+    const loadName = async () => {
+      if (!showCreateAsset || !templateId) { setTemplateName(''); return; }
+      try {
+        const res: any = await api.getTemplate(templateId);
+        const payload = res?.data ?? res?.template ?? res?.result ?? res;
+        const name = payload?.name ?? payload?.data?.name ?? payload?.template?.name ?? '';
+        setTemplateName(typeof name === 'string' ? name : '');
+      } catch {
+        setTemplateName('');
+      }
+    };
+    loadName();
+  }, [showCreateAsset, templateId]);
 
   useEffect(() => {
     // Auto fetch when we have a filter
@@ -361,6 +396,89 @@ const AssetFiles: React.FC = () => {
               <div className="flex justify-end space-x-3 pt-2">
                 <button type="button" onClick={() => setShowCreateVersion(false)} className="px-4 py-2 bg-gray-100 rounded">Cancel</button>
                 <button type="submit" className="px-4 py-2 bg-whatsapp-500 text-white rounded">Create</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Create Asset Modal (triggered when navigated from approval if is_asset_generation_file is false) */}
+      {showCreateAsset && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50 overflow-y-auto">
+          <div className="bg-white w-full max-w-2xl rounded-lg shadow p-6 my-8 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Create Asset</h3>
+              <button onClick={() => { setShowCreateAsset(false); navigate('/asset-files'); }} className="px-3 py-1 text-sm rounded bg-gray-100">Close</button>
+            </div>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                try {
+                  if (!templateId) throw new Error('Template ID is required');
+                  await api.generateAssets(templateId);
+                  setShowCreateAsset(false);
+                  // Keep filter by template and refresh list
+                  await fetchFiles();
+                } catch (e: any) {
+                  setError(e?.response?.data?.message || 'Failed to generate asset');
+                }
+              }}
+              className="space-y-4"
+            >
+              <div className="p-3 bg-gray-50 rounded border text-sm text-gray-700">
+                <span className="font-medium">Template:</span> {templateName || templateId}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Type of Content</label>
+                  <input
+                    value={createForm.typeOfContent || ''}
+                    onChange={(e) => setCreateForm({ ...createForm, typeOfContent: e.target.value })}
+                    className="mt-1 w-full border rounded px-3 py-2"
+                    placeholder="e.g., public / personalized"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">File Name</label>
+                  <input
+                    value={createForm.file_name || ''}
+                    onChange={(e) => setCreateForm({ ...createForm, file_name: e.target.value })}
+                    className="mt-1 w-full border rounded px-3 py-2"
+                    placeholder="greeting_en_US.html"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700">Description</label>
+                  <input
+                    value={createForm.description || ''}
+                    onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
+                    className="mt-1 w-full border rounded px-3 py-2"
+                    placeholder="Short description of the asset"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Version</label>
+                  <input
+                    value={createForm.version || ''}
+                    onChange={(e) => setCreateForm({ ...createForm, version: e.target.value })}
+                    className="mt-1 w-full border rounded px-3 py-2"
+                    placeholder="v1"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700">File Content</label>
+                  <textarea
+                    value={createForm.file_content || ''}
+                    onChange={(e) => setCreateForm({ ...createForm, file_content: e.target.value })}
+                    rows={6}
+                    className="mt-1 w-full border rounded px-3 py-2"
+                    placeholder="Paste the Python code"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end space-x-3 pt-2">
+                <button type="button" onClick={() => { setShowCreateAsset(false); navigate('/asset-files'); }} className="px-4 py-2 bg-gray-100 rounded">Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-whatsapp-500 text-white rounded">Submit</button>
               </div>
             </form>
           </div>

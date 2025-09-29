@@ -201,13 +201,6 @@ const Organizations: React.FC = () => {
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleOpenWhatsAppConfig(org); }}
-                        className="p-2 text-gray-400 hover:text-whatsapp-600"
-                        title="WhatsApp Configuration"
-                      >
-                        <Settings className="h-5 w-5" />
-                      </button>
                       {canManageOrganizations && (
                         <>
                           <button

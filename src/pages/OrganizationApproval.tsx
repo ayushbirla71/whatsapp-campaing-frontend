@@ -56,6 +56,18 @@ const OrganizationApproval: React.FC = () => {
     return false;
   };
 
+  // Determine if asset generation file exists (flag can come in various shapes)
+  const hasAssetGenerationFile = (item: any): boolean => {
+    const v = item?.is_asset_generation_file ?? item?.has_asset_generation_file ?? item?.asset_generation_file ?? item?.assetFileGenerated ?? item?.asset_generated;
+    if (typeof v === 'boolean') return v;
+    if (typeof v === 'number') return v === 1;
+    if (typeof v === 'string') {
+      const s = v.toLowerCase();
+      return s === 'true' || s === 'yes' || s === '1';
+    }
+    return false;
+  };
+
   const fetchTemplates = async () => {
     if (!organizationId) return;
     try {
@@ -284,30 +296,53 @@ const OrganizationApproval: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                      
                       <div className="flex items-center gap-2 justify-end">
-                        {(user?.role === 'super_admin' || user?.role === 'system_admin') && (
-                        <button
-                          onClick={() => {
-                            openApproveModal(t);
-                          }}
-                          className="inline-flex items-center px-3 py-1.5 rounded-md bg-green-600 text-white hover:bg-green-700"
-                        >
-                          <CheckCircle2 className="h-4 w-4 mr-1" /> Admin Approve
-                        </button>
-                        )}
-                        {(user?.role === 'super_admin' || user?.role === 'system_admin') && (
-                        <button
-                          onClick={() => {
-                            const ident = getTemplateIdentifier(t);
-                            if (!ident) { setError('Template UUID is missing or invalid on this item'); return; }
-                            handleReject(ident);
-                          }}
-                          className="inline-flex items-center px-3 py-1.5 rounded-md bg-red-600 text-white hover:bg-red-700"
-                        >
-                          <XCircle className="h-4 w-4 mr-1" /> Admin Reject
-                        </button>
-                        )}
+                        {(() => {
+                          const assetGenerated = hasAssetGenerationFile(t as any);
+                          // If asset generation file is not present -> show Upload Asset button
+                          if (!assetGenerated) {
+                            if (user?.role === 'super_admin' || user?.role === 'system_admin' || user?.role === 'organization_admin') {
+                              const ident = getTemplateIdentifier(t);
+                              return (
+                                <button
+                                  onClick={() => {
+                                    if (!ident) { setError('Template UUID is missing or invalid on this item'); return; }
+                                    navigate(`/asset-files?create=1&templateId=${encodeURIComponent(ident)}`);
+                                  }}
+                                  className="inline-flex items-center px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
+                                >
+                                  Upload Asset
+                                </button>
+                              );
+                            }
+                            return null;
+                          }
+                          // If asset exists -> show existing Admin Approve/Reject
+                          return (
+                            <>
+                              {(user?.role === 'super_admin' || user?.role === 'system_admin') && (
+                                <button
+                                  onClick={() => { openApproveModal(t); }}
+                                  className="inline-flex items-center px-3 py-1.5 rounded-md bg-green-600 text-white hover:bg-green-700"
+                                >
+                                  <CheckCircle2 className="h-4 w-4 mr-1" /> Admin Approve
+                                </button>
+                              )}
+                              {(user?.role === 'super_admin' || user?.role === 'system_admin') && (
+                                <button
+                                  onClick={() => {
+                                    const ident = getTemplateIdentifier(t);
+                                    if (!ident) { setError('Template UUID is missing or invalid on this item'); return; }
+                                    handleReject(ident);
+                                  }}
+                                  className="inline-flex items-center px-3 py-1.5 rounded-md bg-red-600 text-white hover:bg-red-700"
+                                >
+                                  <XCircle className="h-4 w-4 mr-1" /> Admin Reject
+                                </button>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                     </td>
                   </tr>
