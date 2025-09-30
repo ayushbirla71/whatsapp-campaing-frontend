@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import apiService from '../services/api';
-import { Template, TemplateListResponse } from '../types/template';
-import { ChevronLeft, RefreshCw, CheckCircle2, XCircle } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import React, { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import apiService from "../services/api";
+import { Template, TemplateListResponse } from "../types/template";
+import { ChevronLeft, RefreshCw, CheckCircle2, XCircle } from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
 
 const OrganizationApproval: React.FC = () => {
   const { id: organizationId } = useParams<{ id: string }>();
@@ -21,49 +21,79 @@ const OrganizationApproval: React.FC = () => {
   // Approve modal state
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [approveLoading, setApproveLoading] = useState(false);
-  const [approveTemplateId, setApproveTemplateId] = useState<string | null>(null);
-  const [approveBodyTemplate, setApproveBodyTemplate] = useState<string>('');
-  const [approveParams, setApproveParams] = useState<Record<string, string>>({});
-  const [approvePreview, setApprovePreview] = useState<string>('');
+  const [approveTemplateId, setApproveTemplateId] = useState<string | null>(
+    null
+  );
+  const [approveBodyTemplate, setApproveBodyTemplate] = useState<string>("");
+  const [approveParams, setApproveParams] = useState<Record<string, string>>(
+    {}
+  );
+  const [approvePreview, setApprovePreview] = useState<string>("");
   const [approveExamples, setApproveExamples] = useState<string[]>([]);
   const [approvePlaceholders, setApprovePlaceholders] = useState<string[]>([]);
 
+  // State for approved templates list for button mappings
+  const [approvedTemplates, setApprovedTemplates] = useState<Template[]>([]);
+  const [buttonMappings, setButtonMappings] = useState<Record<string, string>>(
+    {}
+  );
+  const [isAutoReplyTemplate, setIsAutoReplyTemplate] = useState(false);
+
   // Keep approvePreview unused (we show raw body), but clear consistently
   useEffect(() => {
-    setApprovePreview('');
+    setApprovePreview("");
   }, [approveBodyTemplate, approveParams]);
 
   const canPrev = page > 1;
   const canNext = page < totalPages;
 
   // Prefer UUID style identifiers coming from backend; fall back to others only if valid
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const getTemplateIdentifier = (t: any): string | null => {
-    const candidate = t?.id || t?.template_id || t?.templateId || t?.uuid || t?.external_id || null;
-    if (candidate && uuidRegex.test(String(candidate))) return String(candidate);
+    const candidate =
+      t?.id ||
+      t?.template_id ||
+      t?.templateId ||
+      t?.uuid ||
+      t?.external_id ||
+      null;
+    if (candidate && uuidRegex.test(String(candidate)))
+      return String(candidate);
     return null;
   };
 
   // Determine approval from various backend shapes
   const isApproved = (item: any): boolean => {
-    const v = item?.approved_by_admin ?? item?.approvedByAdmin ?? item?.admin_approved ?? item?.is_admin_approved ?? item?.approval_status ?? item?.status;
-    if (typeof v === 'boolean') return v;
-    if (typeof v === 'number') return v === 1;
-    if (typeof v === 'string') {
+    const v =
+      item?.approved_by_admin ??
+      item?.approvedByAdmin ??
+      item?.admin_approved ??
+      item?.is_admin_approved ??
+      item?.approval_status ??
+      item?.status;
+    if (typeof v === "boolean") return v;
+    if (typeof v === "number") return v === 1;
+    if (typeof v === "string") {
       const s = v.toLowerCase();
-      return s === 'approved' || s === 'true' || s === 'yes' || s === '1';
+      return s === "approved" || s === "true" || s === "yes" || s === "1";
     }
     return false;
   };
 
   // Determine if asset generation file exists (flag can come in various shapes)
   const hasAssetGenerationFile = (item: any): boolean => {
-    const v = item?.is_asset_generation_file ?? item?.has_asset_generation_file ?? item?.asset_generation_file ?? item?.assetFileGenerated ?? item?.asset_generated;
-    if (typeof v === 'boolean') return v;
-    if (typeof v === 'number') return v === 1;
-    if (typeof v === 'string') {
+    const v =
+      item?.is_asset_generation_file ??
+      item?.has_asset_generation_file ??
+      item?.asset_generation_file ??
+      item?.assetFileGenerated ??
+      item?.asset_generated;
+    if (typeof v === "boolean") return v;
+    if (typeof v === "number") return v === 1;
+    if (typeof v === "string") {
       const s = v.toLowerCase();
-      return s === 'true' || s === 'yes' || s === '1';
+      return s === "true" || s === "yes" || s === "1";
     }
     return false;
   };
@@ -75,14 +105,21 @@ const OrganizationApproval: React.FC = () => {
       setError(null);
       const res = pendingOnly
         ? await apiService.getPendingAdminApprovalTemplates(page, limit)
-        : await apiService.getOrganizationTemplates(organizationId, page, limit);
+        : await apiService.getOrganizationTemplates(
+            organizationId,
+            page,
+            limit
+          );
       const payload: any = res?.data || {};
-      const list: Template[] = payload.templates || payload.data?.templates || [];
+      const list: Template[] =
+        payload.templates || payload.data?.templates || [];
       const pg = payload.pagination || payload.data?.pagination || {};
       setTemplates(list);
       setTotalPages(pg.totalPages || 1);
     } catch (e: any) {
-      setError(e?.response?.data?.message || e.message || 'Failed to load templates');
+      setError(
+        e?.response?.data?.message || e.message || "Failed to load templates"
+      );
     } finally {
       setLoading(false);
     }
@@ -101,7 +138,7 @@ const OrganizationApproval: React.FC = () => {
       await apiService.syncTemplatesFromWhatsApp(organizationId);
       await fetchTemplates();
     } catch (e: any) {
-      setError(e?.response?.data?.message || e.message || 'Sync failed');
+      setError(e?.response?.data?.message || e.message || "Sync failed");
     } finally {
       setSyncing(false);
     }
@@ -109,69 +146,140 @@ const OrganizationApproval: React.FC = () => {
 
   // Replace placeholders like {{1}}, {{2}} in a text using params
   const renderWithParams = (text: string, params: Record<string, string>) => {
-    if (!text) return '';
+    if (!text) return "";
     return text.replace(/\{\{\s*(\d+)\s*\}\}/g, (_, k: string) => {
       const v = params?.[k];
-      return typeof v === 'string' ? v : `{{${k}}}`;
+      return typeof v === "string" ? v : `{{${k}}}`;
     });
   };
 
   // Extract BODY text and example values from components with flexible shapes
-  const extractBodyData = (components: any): { bodyText: string; exampleValues: string[] } => {
+  const extractBodyData = (
+    components: any
+  ): { bodyText: string; exampleValues: string[] } => {
     const list = Array.isArray(components) ? components : [];
-    const body = list.find((c: any) => {
-      const t = (c?.type || c?.component_type || c?.name || '').toString().toUpperCase();
-      return t === 'BODY';
-    }) || {};
-    const bodyText = body?.text || body?.body_text || body?.data?.text || '';
+    const body =
+      list.find((c: any) => {
+        const t = (c?.type || c?.component_type || c?.name || "")
+          .toString()
+          .toUpperCase();
+        return t === "BODY";
+      }) || {};
+    const bodyText = body?.text || body?.body_text || body?.data?.text || "";
     const ex = body?.example || body?.examples || body?.data?.example || {};
     // WhatsApp often returns example.body_text as array of arrays; pick first row
     let vals: any = ex?.body_text ?? ex?.body ?? ex?.values;
     let exampleValues: string[] = [];
     if (Array.isArray(vals)) {
-      if (Array.isArray(vals[0])) exampleValues = (vals[0] as any[]).map((v) => String(v));
+      if (Array.isArray(vals[0]))
+        exampleValues = (vals[0] as any[]).map((v) => String(v));
       else exampleValues = vals.map((v: any) => String(v));
-    } else if (typeof vals === 'string') {
+    } else if (typeof vals === "string") {
       exampleValues = [vals];
     }
-    return { bodyText: String(bodyText || ''), exampleValues };
+    return { bodyText: String(bodyText || ""), exampleValues };
   };
+
+  // Extract buttons from template components
+  const extractButtons = (components: any): string[] => {
+    const list = Array.isArray(components) ? components : [];
+    const buttonComponent = list.find((c: any) => {
+      const t = (c?.type || "").toString().toUpperCase();
+      return t === "BUTTONS";
+    });
+
+    if (!buttonComponent?.buttons) return [];
+
+    return buttonComponent.buttons
+      .filter((btn: any) => btn?.type === "QUICK_REPLY")
+      .map((btn: any) => btn?.text || "")
+      .filter(Boolean);
+  };
+
+  // Fetch approved templates for button mappings
+  const fetchApprovedTemplates = async () => {
+    try {
+      if (!organizationId) return;
+      const res = await apiService.getOrganizationTemplates(
+        organizationId,
+        1,
+        100
+      );
+      const payload: any = res?.data || {};
+      const list: Template[] =
+        payload.templates || payload.data?.templates || [];
+      // Filter only admin approved templates
+      const approved = list.filter((t) => isApproved(t as any));
+      setApprovedTemplates(approved);
+    } catch (e) {
+      console.error("Failed to fetch approved templates:", e);
+    }
+  };
+
+  useEffect(() => {
+    if (showApproveModal) {
+      fetchApprovedTemplates();
+    }
+  }, [showApproveModal, organizationId]);
 
   const openApproveModal = async (templateRow: any) => {
     try {
       const ident = getTemplateIdentifier(templateRow);
-      if (!ident) { setError('Template UUID is missing or invalid on this item'); return; }
+      if (!ident) {
+        setError("Template UUID is missing or invalid on this item");
+        return;
+      }
       setApproveLoading(true);
       setError(null);
       // Fetch full template to get components with examples
       const res: any = await apiService.getTemplate(ident);
       const payload = res?.data ?? res?.template ?? res?.result ?? res;
-      const components = payload?.components
-        ?? payload?.data?.components
-        ?? payload?.template?.components
-        ?? payload?.result?.components
-        ?? [];
+      const components =
+        payload?.components ??
+        payload?.data?.components ??
+        payload?.template?.components ??
+        payload?.result?.components ??
+        [];
       const { bodyText, exampleValues } = extractBodyData(components);
 
+      // Extract buttons for auto-reply mapping
+      const buttons = extractButtons(components);
+
       // Compute placeholder order from BODY text, like {{1}}, {{2}}, ...
-      const matches = Array.from(String(bodyText || '').matchAll(/\{\{\s*(\d+)\s*\}\}/g));
-      const placeholderOrder = Array.from(new Set(matches.map((m) => String(m[1]))));
+      const matches = Array.from(
+        String(bodyText || "").matchAll(/\{\{\s*(\d+)\s*\}\}/g)
+      );
+      const placeholderOrder = Array.from(
+        new Set(matches.map((m) => String(m[1])))
+      );
 
       // Build default params aligned to placeholder order using example values
       const params: Record<string, string> = {};
       placeholderOrder.forEach((ph, i) => {
-        params[ph] = exampleValues[i] ?? '';
+        params[ph] = exampleValues[i] ?? "";
+      });
+
+      // Initialize button mappings for detected buttons
+      const initialButtonMappings: Record<string, string> = {};
+      buttons.forEach((buttonText) => {
+        initialButtonMappings[buttonText] = "";
       });
 
       setApproveTemplateId(ident);
       setApproveBodyTemplate(bodyText);
       setApproveParams(params);
-      setApprovePreview('');
+      setApprovePreview("");
       setApproveExamples(exampleValues);
       setApprovePlaceholders(placeholderOrder);
+      setButtonMappings(initialButtonMappings);
+      setIsAutoReplyTemplate(false);
       setShowApproveModal(true);
     } catch (e: any) {
-      setError(e?.response?.data?.message || e.message || 'Failed to open approval modal');
+      setError(
+        e?.response?.data?.message ||
+          e.message ||
+          "Failed to open approval modal"
+      );
     } finally {
       setApproveLoading(false);
     }
@@ -179,18 +287,25 @@ const OrganizationApproval: React.FC = () => {
 
   const handleApprove = async (templateId: string) => {
     try {
-      const body = { parameters: approveParams };
+      const body = {
+        parameters: approveParams,
+        is_auto_reply_template: isAutoReplyTemplate,
+        button_mappings:
+          Object.keys(buttonMappings).length > 0 ? buttonMappings : undefined,
+      };
       await apiService.approveAdminTemplates(templateId, body);
       await fetchTemplates();
       setShowApproveModal(false);
       setApproveTemplateId(null);
       setApproveParams({});
-      setApproveBodyTemplate('');
-      setApprovePreview('');
+      setApproveBodyTemplate("");
+      setApprovePreview("");
       setApproveExamples([]);
       setApprovePlaceholders([]);
+      setButtonMappings({});
+      setIsAutoReplyTemplate(false);
     } catch (e: any) {
-      setError(e?.response?.data?.message || e.message || 'Approve failed');
+      setError(e?.response?.data?.message || e.message || "Approve failed");
     }
   };
 
@@ -198,272 +313,532 @@ const OrganizationApproval: React.FC = () => {
     try {
       const body = {
         rejection_reason:
-          'Parameter mapping not suitable for campaign usage. Please review the template structure and parameter requirements.',
+          "Parameter mapping not suitable for campaign usage. Please review the template structure and parameter requirements.",
       };
       await apiService.rejectAdminTemplates(templateId, body);
       await fetchTemplates();
     } catch (e: any) {
-      setError(e?.response?.data?.message || e.message || 'Reject failed');
+      setError(e?.response?.data?.message || e.message || "Reject failed");
     }
   };
 
   return (
     <>
-    <div className="p-6">
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate(-1)}
-            className="inline-flex items-center px-3 py-2 rounded-md border text-sm text-gray-700 hover:bg-gray-50"
-          >
-            <ChevronLeft className="h-4 w-4 mr-1" /> Back
-          </button>
-          <h1 className="text-2xl font-bold text-gray-900">Approval - Organization {organizationId}</h1>
+      <div className="p-6">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate(-1)}
+              className="inline-flex items-center px-3 py-2 rounded-md border text-sm text-gray-700 hover:bg-gray-50"
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" /> Back
+            </button>
+            <h1 className="text-2xl font-bold text-gray-900">
+              Approval - Organization {organizationId}
+            </h1>
+          </div>
+          <div className="flex items-center gap-4">
+            <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={pendingOnly}
+                onChange={(e) => {
+                  setPage(1);
+                  setPendingOnly(e.target.checked);
+                }}
+                className="h-4 w-4 rounded border-gray-300 text-whatsapp-600 focus:ring-whatsapp-500"
+              />
+              Pending admin approval
+            </label>
+            <button
+              onClick={handleSyncWhatsApp}
+              disabled={syncing}
+              className={`inline-flex items-center px-4 py-2 rounded-lg text-white ${
+                syncing
+                  ? "bg-gray-400"
+                  : "bg-whatsapp-500 hover:bg-whatsapp-600"
+              }`}
+            >
+              <RefreshCw
+                className={`h-4 w-4 mr-2 ${syncing ? "animate-spin" : ""}`}
+              />
+              {syncing ? "Syncing..." : "Sync WhatsApp"}
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-4">
-          <label className="inline-flex items-center gap-2 text-sm text-gray-700">
-            <input
-              type="checkbox"
-              checked={pendingOnly}
-              onChange={(e) => { setPage(1); setPendingOnly(e.target.checked); }}
-              className="h-4 w-4 rounded border-gray-300 text-whatsapp-600 focus:ring-whatsapp-500"
-            />
-            Pending admin approval
-          </label>
-          <button
-            onClick={handleSyncWhatsApp}
-            disabled={syncing}
-            className={`inline-flex items-center px-4 py-2 rounded-lg text-white ${syncing ? 'bg-gray-400' : 'bg-whatsapp-500 hover:bg-whatsapp-600'}`}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing ? 'Syncing...' : 'Sync WhatsApp'}
-          </button>
-        </div>
-      </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="p-4 border-b">
-          <h2 className="text-lg font-semibold text-gray-900">Templates</h2>
-        </div>
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="p-4 border-b">
+            <h2 className="text-lg font-semibold text-gray-900">Templates</h2>
+          </div>
 
-        {error && (
-          <div className="m-4 rounded bg-red-50 text-red-700 p-3 text-sm">{error}</div>
-        )}
+          {error && (
+            <div className="m-4 rounded bg-red-50 text-red-700 p-3 text-sm">
+              {error}
+            </div>
+          )}
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Language</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3" />
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {loading ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
                 <tr>
-                  <td className="px-6 py-4" colSpan={6}>Loading...</td>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Name
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Category
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Language
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3" />
                 </tr>
-              ) : templates.filter((t) => !isApproved(t as any)).length === 0 ? (
-                <tr>
-                  <td className="px-6 py-4 text-gray-500" colSpan={6}>No templates found.</td>
-                </tr>
-              ) : (
-                templates.filter((t) => !isApproved(t as any)).map((t) => (
-                  <tr key={t._id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{t.name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{t.category}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{t.language}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      {(() => {
-                        const approved = isApproved(t as any);
-                        const derivedStatus = approved ? 'approved' : 'pending';
-                        const cls = approved ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800';
-                        return (
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${cls}`}>
-                            {derivedStatus}
-                          </span>
-                        );
-                      })()}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-700">
-                      <div>
-                        {t.header_text && <div className="font-medium mb-1">{t.header_text}</div>}
-                        <div className="whitespace-pre-wrap text-gray-700">{t.body_text}</div>
-                        {t.footer_text && <div className="text-gray-500 mt-1">{t.footer_text}</div>}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                      <div className="flex items-center gap-2 justify-end">
-                        {(() => {
-                          const assetGenerated = hasAssetGenerationFile(t as any);
-                          // If asset generation file is not present -> show Upload Asset button
-                          if (!assetGenerated) {
-                            if (user?.role === 'super_admin' || user?.role === 'system_admin' || user?.role === 'organization_admin') {
-                              const ident = getTemplateIdentifier(t);
-                              return (
-                                <button
-                                  onClick={() => {
-                                    if (!ident) { setError('Template UUID is missing or invalid on this item'); return; }
-                                    navigate(`/asset-files?create=1&templateId=${encodeURIComponent(ident)}`);
-                                  }}
-                                  className="inline-flex items-center px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
-                                >
-                                  Upload Asset
-                                </button>
-                              );
-                            }
-                            return null;
-                          }
-                          // If asset exists -> show existing Admin Approve/Reject
-                          return (
-                            <>
-                              {(user?.role === 'super_admin' || user?.role === 'system_admin') && (
-                                <button
-                                  onClick={() => { openApproveModal(t); }}
-                                  className="inline-flex items-center px-3 py-1.5 rounded-md bg-green-600 text-white hover:bg-green-700"
-                                >
-                                  <CheckCircle2 className="h-4 w-4 mr-1" /> Admin Approve
-                                </button>
-                              )}
-                              {(user?.role === 'super_admin' || user?.role === 'system_admin') && (
-                                <button
-                                  onClick={() => {
-                                    const ident = getTemplateIdentifier(t);
-                                    if (!ident) { setError('Template UUID is missing or invalid on this item'); return; }
-                                    handleReject(ident);
-                                  }}
-                                  className="inline-flex items-center px-3 py-1.5 rounded-md bg-red-600 text-white hover:bg-red-700"
-                                >
-                                  <XCircle className="h-4 w-4 mr-1" /> Admin Reject
-                                </button>
-                              )}
-                            </>
-                          );
-                        })()}
-                      </div>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {loading ? (
+                  <tr>
+                    <td className="px-6 py-4" colSpan={6}>
+                      Loading...
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="bg-white rounded-b-lg p-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600">Rows:</label>
-            <select
-              className="rounded-md border-gray-300 shadow-sm focus:border-whatsapp-500 focus:ring-whatsapp-500"
-              value={limit}
-              onChange={(e) => { setPage(1); setLimit(parseInt(e.target.value, 10)); }}
-            >
-              {[10, 20, 50].map((n) => (
-                <option key={n} value={n}>{n}</option>
-              ))}
-            </select>
+                ) : templates.filter((t) => !isApproved(t as any)).length ===
+                  0 ? (
+                  <tr>
+                    <td className="px-6 py-4 text-gray-500" colSpan={6}>
+                      No templates found.
+                    </td>
+                  </tr>
+                ) : (
+                  templates
+                    .filter((t) => !isApproved(t as any))
+                    .map((t) => (
+                      <tr key={t._id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {t.name}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                          {t.category}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                          {t.language}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          {(() => {
+                            const approved = isApproved(t as any);
+                            const derivedStatus = approved
+                              ? "approved"
+                              : "pending";
+                            const cls = approved
+                              ? "bg-green-100 text-green-800"
+                              : "bg-yellow-100 text-yellow-800";
+                            return (
+                              <span
+                                className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${cls}`}
+                              >
+                                {derivedStatus}
+                              </span>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-700">
+                          <div>
+                            {t.header_text && (
+                              <div className="font-medium mb-1">
+                                {t.header_text}
+                              </div>
+                            )}
+                            <div className="whitespace-pre-wrap text-gray-700">
+                              {t.body_text}
+                            </div>
+                            {t.footer_text && (
+                              <div className="text-gray-500 mt-1">
+                                {t.footer_text}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                          <div className="flex items-center gap-2 justify-end">
+                            {(() => {
+                              const assetGenerated = hasAssetGenerationFile(
+                                t as any
+                              );
+                              // If asset generation file is not present -> show Upload Asset button
+                              if (!assetGenerated) {
+                                if (
+                                  user?.role === "super_admin" ||
+                                  user?.role === "system_admin" ||
+                                  user?.role === "organization_admin"
+                                ) {
+                                  const ident = getTemplateIdentifier(t);
+                                  return (
+                                    <button
+                                      onClick={() => {
+                                        if (!ident) {
+                                          setError(
+                                            "Template UUID is missing or invalid on this item"
+                                          );
+                                          return;
+                                        }
+                                        navigate(
+                                          `/asset-files?create=1&templateId=${encodeURIComponent(
+                                            ident
+                                          )}`
+                                        );
+                                      }}
+                                      className="inline-flex items-center px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
+                                    >
+                                      Upload Asset
+                                    </button>
+                                  );
+                                }
+                                return null;
+                              }
+                              // If asset exists -> show existing Admin Approve/Reject
+                              return (
+                                <>
+                                  {(user?.role === "super_admin" ||
+                                    user?.role === "system_admin") && (
+                                    <button
+                                      onClick={() => {
+                                        openApproveModal(t);
+                                      }}
+                                      className="inline-flex items-center px-3 py-1.5 rounded-md bg-green-600 text-white hover:bg-green-700"
+                                    >
+                                      <CheckCircle2 className="h-4 w-4 mr-1" />{" "}
+                                      Admin Approve
+                                    </button>
+                                  )}
+                                  {(user?.role === "super_admin" ||
+                                    user?.role === "system_admin") && (
+                                    <button
+                                      onClick={() => {
+                                        const ident = getTemplateIdentifier(t);
+                                        if (!ident) {
+                                          setError(
+                                            "Template UUID is missing or invalid on this item"
+                                          );
+                                          return;
+                                        }
+                                        handleReject(ident);
+                                      }}
+                                      className="inline-flex items-center px-3 py-1.5 rounded-md bg-red-600 text-white hover:bg-red-700"
+                                    >
+                                      <XCircle className="h-4 w-4 mr-1" /> Admin
+                                      Reject
+                                    </button>
+                                  )}
+                                </>
+                              );
+                            })()}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                )}
+              </tbody>
+            </table>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              className="px-3 py-1 rounded border text-sm disabled:opacity-50"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={!canPrev}
-            >
-              Prev
-            </button>
-            <span className="text-sm text-gray-600">Page {page} of {totalPages}</span>
-            <button
-              className="px-3 py-1 rounded border text-sm disabled:opacity-50"
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={!canNext}
-            >
-              Next
-            </button>
+
+          <div className="bg-white rounded-b-lg p-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600">Rows:</label>
+              <select
+                className="rounded-md border-gray-300 shadow-sm focus:border-whatsapp-500 focus:ring-whatsapp-500"
+                value={limit}
+                onChange={(e) => {
+                  setPage(1);
+                  setLimit(parseInt(e.target.value, 10));
+                }}
+              >
+                {[10, 20, 50].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                className="px-3 py-1 rounded border text-sm disabled:opacity-50"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={!canPrev}
+              >
+                Prev
+              </button>
+              <span className="text-sm text-gray-600">
+                Page {page} of {totalPages}
+              </span>
+              <button
+                className="px-3 py-1 rounded border text-sm disabled:opacity-50"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={!canNext}
+              >
+                Next
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    {/* Approve Modal UI */}
-    {showApproveModal && (
-      <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity flex items-center justify-center" aria-hidden="true" onClick={() => setShowApproveModal(false)}>
-        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:align-middle sm:max-w-lg sm:w-full" role="dialog" aria-modal="true" aria-labelledby="modal-headline" onClick={(e) => e.stopPropagation()}>
-          <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4 max-h-[70vh] overflow-y-auto">
-            <div className="sm:flex sm:items-start">
-              <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-green-100 sm:mx-0 sm:h-10 sm:w-10">
-                <CheckCircle2 className="h-6 w-6 text-green-600" />
-              </div>
-              <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-headline">Approve Template</h3>
-                <div className="mt-2">
-                  <p className="text-sm text-gray-500">Please review and validate the template parameters.</p>
+      {/* Approve Modal UI */}
+      {showApproveModal && (
+        <div
+          className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity flex items-center justify-center"
+          aria-hidden="true"
+          onClick={() => setShowApproveModal(false)}
+        >
+          <div
+            className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:align-middle sm:max-w-lg sm:w-full"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modal-headline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4 max-h-[70vh] overflow-y-auto">
+              <div className="sm:flex sm:items-start">
+                <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-green-100 sm:mx-0 sm:h-10 sm:w-10">
+                  <CheckCircle2 className="h-6 w-6 text-green-600" />
                 </div>
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-700">Body Template (with placeholders):</label>
-                  <div className="mt-1 whitespace-pre-wrap text-gray-900">{approveBodyTemplate}</div>
-                </div>
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-700">Example Context (example.body_text):</label>
-                  {approveExamples && approveExamples.length > 0 ? (
-                    <ul className="mt-1 list-disc list-inside text-sm text-gray-800">
-                      {approveExamples.map((v, i) => (
-                        <li key={i}>{v}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <div className="mt-1 text-sm text-gray-500">No example values found.</div>
-                  )}
-                </div>
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-700">Placeholder Mappings:</label>
-                  <div className="mt-1 space-y-2">
-                    {approvePlaceholders.length > 0 ? (
-                      approvePlaceholders.map((ph, idx) => {
-                        const exampleVal = approveExamples[idx] ?? '';
-                        return (
-                          <div key={ph} className="flex items-center gap-3">
-                            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-gray-100 text-gray-800">{'{{' + ph + '}}'}</span>
-                            <input
-                              type="text"
-                              value={approveParams[ph] ?? ''}
-                              onChange={(e) => setApproveParams({ ...approveParams, [ph]: e.target.value })}
-                              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-whatsapp-500 focus:ring-whatsapp-500"
-                            />
-                            <span className="text-xs text-gray-500">Example: {exampleVal}</span>
-                          </div>
-                        );
-                      })
+                <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                  <h3
+                    className="text-lg leading-6 font-medium text-gray-900"
+                    id="modal-headline"
+                  >
+                    Approve Template
+                  </h3>
+                  <div className="mt-2">
+                    <p className="text-sm text-gray-500">
+                      Please review and validate the template parameters.
+                    </p>
+                  </div>
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Body Template (with placeholders):
+                    </label>
+                    <div className="mt-1 whitespace-pre-wrap text-gray-900">
+                      {approveBodyTemplate}
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Example Context (example.body_text):
+                    </label>
+                    {approveExamples && approveExamples.length > 0 ? (
+                      <ul className="mt-1 list-disc list-inside text-sm text-gray-800">
+                        {approveExamples.map((v, i) => (
+                          <li key={i}>{v}</li>
+                        ))}
+                      </ul>
                     ) : (
-                      <div className="text-sm text-gray-500">No placeholders detected in body.</div>
+                      <div className="mt-1 text-sm text-gray-500">
+                        No example values found.
+                      </div>
                     )}
                   </div>
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Placeholder Mappings:
+                    </label>
+                    <div className="mt-1 space-y-2">
+                      {approvePlaceholders.length > 0 ? (
+                        approvePlaceholders.map((ph, idx) => {
+                          const exampleVal = approveExamples[idx] ?? "";
+                          return (
+                            <div key={ph} className="flex items-center gap-3">
+                              <span className="text-xs font-semibold px-2 py-0.5 rounded bg-gray-100 text-gray-800">
+                                {"{{" + ph + "}}"}
+                              </span>
+                              <input
+                                type="text"
+                                value={approveParams[ph] ?? ""}
+                                onChange={(e) =>
+                                  setApproveParams({
+                                    ...approveParams,
+                                    [ph]: e.target.value,
+                                  })
+                                }
+                                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-whatsapp-500 focus:ring-whatsapp-500"
+                              />
+                              <span className="text-xs text-gray-500">
+                                Example: {exampleVal}
+                              </span>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="text-sm text-gray-500">
+                          No placeholders detected in body.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Button Mappings Section */}
+                  {Object.keys(buttonMappings).length > 0 && (
+                    <div className="mt-6 bg-blue-50 p-4 rounded-lg border border-blue-200">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
+                          <span className="text-blue-600 text-sm">🔄</span>
+                        </div>
+                        <div>
+                          <h4 className="text-lg font-medium text-gray-800">
+                            Auto Reply Configuration
+                          </h4>
+                          <p className="text-sm text-gray-600">
+                            Configure automatic responses for button
+                            interactions
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mb-4">
+                        <label className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={isAutoReplyTemplate}
+                            onChange={(e) =>
+                              setIsAutoReplyTemplate(e.target.checked)
+                            }
+                            className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <div>
+                            <span className="text-sm font-medium text-gray-800">
+                              Enable Auto Reply Template
+                            </span>
+                            <p className="text-xs text-gray-500">
+                              Automatically send responses when users click
+                              buttons
+                            </p>
+                          </div>
+                        </label>
+                      </div>
+
+                      {isAutoReplyTemplate && (
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-2 mb-3">
+                            <span className="text-sm font-medium text-gray-700">
+                              Button Response Mappings
+                            </span>
+                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                              {Object.keys(buttonMappings).length} button(s)
+                              detected
+                            </span>
+                          </div>
+
+                          <div className="grid gap-4">
+                            {Object.keys(buttonMappings).map((buttonText) => (
+                              <div
+                                key={buttonText}
+                                className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm"
+                              >
+                                <div className="flex items-center gap-4">
+                                  <div className="flex-shrink-0">
+                                    <div className="flex items-center justify-center w-10 h-10 bg-green-100 rounded-lg">
+                                      <span className="text-green-600 font-medium text-sm">
+                                        {buttonText}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="flex-1">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                      Response Template for "{buttonText}"
+                                      button
+                                    </label>
+                                    <select
+                                      value={buttonMappings[buttonText]}
+                                      onChange={(e) =>
+                                        setButtonMappings({
+                                          ...buttonMappings,
+                                          [buttonText]: e.target.value,
+                                        })
+                                      }
+                                      className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+                                    >
+                                      <option value="">
+                                        Select a template to send...
+                                      </option>
+                                      {approvedTemplates.map((template) => (
+                                        <option
+                                          key={template._id}
+                                          value={
+                                            getTemplateIdentifier(template) ||
+                                            template._id
+                                          }
+                                        >
+                                          {template.name} ({template.category})
+                                        </option>
+                                      ))}
+                                    </select>
+                                    {buttonMappings[buttonText] && (
+                                      <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                                        <span>✓</span> Template selected
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                            <div className="flex items-start gap-2">
+                              <span className="text-yellow-600 text-sm">
+                                ⚠️
+                              </span>
+                              <div>
+                                <p className="text-sm font-medium text-yellow-800">
+                                  Important Notes:
+                                </p>
+                                <ul className="text-xs text-yellow-700 mt-1 space-y-1">
+                                  <li>
+                                    • Selected templates will be sent
+                                    automatically when users click the
+                                    corresponding buttons
+                                  </li>
+                                  <li>
+                                    • Make sure the selected templates are
+                                    relevant to the button action
+                                  </li>
+                                  <li>
+                                    • Only approved templates are available for
+                                    selection
+                                  </li>
+                                </ul>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
-          </div>
-          <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-            <button
-              type="button"
-              className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:ml-3 sm:w-auto sm:text-sm"
-              onClick={() => handleApprove(approveTemplateId as string)}
-            >
-              Approve
-            </button>
-            <button
-              type="button"
-              className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-              onClick={() => setShowApproveModal(false)}
-            >
-              Cancel
-            </button>
+            <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+              <button
+                type="button"
+                className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:ml-3 sm:w-auto sm:text-sm"
+                onClick={() => handleApprove(approveTemplateId as string)}
+              >
+                Approve
+              </button>
+              <button
+                type="button"
+                className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                onClick={() => setShowApproveModal(false)}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    )}
+      )}
     </>
-  );  
+  );
 };
 
 export default OrganizationApproval;

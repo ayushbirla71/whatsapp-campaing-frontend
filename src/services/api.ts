@@ -299,7 +299,7 @@ class ApiService {
     }
     return this.createCampaignForOrganization(organizationId, data);
   }
-  
+
   async updateCampaign(id: string, data: UpdateCampaignRequest): Promise<ApiResponse<Campaign>> {
     const response: AxiosResponse<ApiResponse> = await this.api.put(`/api/campaigns/${id}`, data);
     return response.data;
@@ -358,23 +358,29 @@ class ApiService {
     return response.data;
   }
 
-  
 
-  // Organization-scoped Audience endpoints (backend-specific)
+
+  // Organization-scoped Audience endpoints (updated to use global endpoint with org parameter)
   async getOrganizationAudience(organizationId: string, page = 1, limit = 10): Promise<ApiResponse<AudienceListResponse>> {
-    const params = new URLSearchParams({ page: page.toString(), limit: limit.toString() });
-    const response: AxiosResponse<ApiResponse> = await this.api.get(`/api/audience/organization/${organizationId}?${params}`);
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+      organization_id: organizationId
+    });
+    const response: AxiosResponse<ApiResponse> = await this.api.get(`/api/audience?${params}`);
     return response.data;
   }
 
   // Master audience routes (create/update single master record, and bulk upsert) with minimal bodies
   async createMasterAudienceRecord(organizationId: string, body: any = {}): Promise<ApiResponse> {
-    const response: AxiosResponse<ApiResponse> = await this.api.post(`/api/audience/organization/${organizationId}`, body);
+    const bodyWithOrg = { ...body, organization_id: organizationId };
+    const response: AxiosResponse<ApiResponse> = await this.api.post(`/api/audience`, bodyWithOrg);
     return response.data;
   }
 
   async bulkCreateMasterAudience(organizationId: string, body: any = {}): Promise<ApiResponse> {
-    const response: AxiosResponse<ApiResponse> = await this.api.post(`/api/audience/organization/${organizationId}/bulk`, body);
+    const bodyWithOrg = { ...body, organization_id: organizationId };
+    const response: AxiosResponse<ApiResponse> = await this.api.post(`/api/audience/bulk`, bodyWithOrg);
     return response.data;
   }
 
@@ -397,8 +403,11 @@ class ApiService {
   }
 
   // Campaign Audience endpoints
-  async getCampaignAudience(campaignId: string, page = 1, limit = 10): Promise<ApiResponse<CampaignAudienceListResponse>> {
+  async getCampaignAudience(campaignId: string, page = 1, limit = 10, includeReplies = false): Promise<ApiResponse<CampaignAudienceListResponse>> {
     const params = new URLSearchParams({ page: page.toString(), limit: limit.toString() });
+    if (includeReplies) {
+      params.append('include_replies', 'true');
+    }
     const response: AxiosResponse<ApiResponse> = await this.api.get(`/api/campaigns/${campaignId}/audience?${params}`);
     return response.data;
   }
@@ -419,8 +428,8 @@ class ApiService {
   }
 
   //Asset Generation endpoints
-  async generateAssets(templateId: string): Promise<ApiResponse> {
-    const response: AxiosResponse<ApiResponse> = await this.api.post(`/api/asset-files/template/${templateId}`);
+  async generateAssets(templateId: string, body?: any): Promise<ApiResponse> {
+    const response: AxiosResponse<ApiResponse> = await this.api.post(`/api/asset-files/template/${templateId}`, body ?? {});
     return response.data;
   }
 
@@ -429,7 +438,7 @@ class ApiService {
     return response.data;
   }
 
-  async getOrgAssetFiles(organizationId: string,page = 1, limit = 10): Promise<ApiResponse> {
+  async getOrgAssetFiles(organizationId: string, page = 1, limit = 10): Promise<ApiResponse> {
     const params = new URLSearchParams({ page: page.toString(), limit: limit.toString() });
     const response: AxiosResponse<ApiResponse> = await this.api.get(`/api/asset-files/organization/${organizationId}?${params}`);
     return response.data;
@@ -453,6 +462,37 @@ class ApiService {
 
   async deactivateAssetFile(assetFileId: string): Promise<ApiResponse> {
     const response: AxiosResponse<ApiResponse> = await this.api.delete(`/api/asset-files/${assetFileId}`);
+    return response.data;
+  }
+
+  async deleteAssetFile(assetFileId: string): Promise<ApiResponse> {
+    const response: AxiosResponse<ApiResponse> = await this.api.delete(`/api/asset-files/${assetFileId}`);
+    return response.data;
+  }
+
+  // Dashboard endpoints
+  async getDashboardOverview(): Promise<ApiResponse<any>> {
+    const response = await this.api.get('/api/dashboard/overview');
+    return response.data;
+  }
+
+  async getDashboardStats(): Promise<ApiResponse<any>> {
+    const response = await this.api.get('/api/dashboard/stats');
+    return response.data;
+  }
+
+  async getDashboardActivities(limit: number = 10): Promise<ApiResponse<any>> {
+    const response = await this.api.get(`/api/dashboard/activities?limit=${limit}`);
+    return response.data;
+  }
+
+  // Global audience endpoint for super/system admins
+  async getGlobalAudience(page = 1, limit = 10, search?: string, countryCode?: string, organizationId?: string): Promise<ApiResponse<AudienceListResponse>> {
+    const params = new URLSearchParams({ page: page.toString(), limit: limit.toString() });
+    if (search) params.append('search', search);
+    if (countryCode) params.append('country_code', countryCode);
+    if (organizationId) params.append('organization_id', organizationId);
+    const response: AxiosResponse<ApiResponse> = await this.api.get(`/api/audience?${params}`);
     return response.data;
   }
 }
