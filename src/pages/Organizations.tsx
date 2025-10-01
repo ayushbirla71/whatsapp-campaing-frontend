@@ -19,6 +19,7 @@ const Organizations: React.FC = () => {
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
   const [whatsappConfig, setWhatsappConfig] = useState<WhatsAppConfig>({});
+  const [confirmState, setConfirmState] = useState<{ open: boolean; message: string; onConfirm?: () => Promise<void> | void }>({ open: false, message: "" });
 
   const [createForm, setCreateForm] = useState<CreateOrganizationRequest>({
     name: "",
@@ -112,14 +113,18 @@ const Organizations: React.FC = () => {
   };
 
   const handleDeleteOrganization = async (id: string) => {
-    if (window.confirm("Are you sure you want to delete this organization?")) {
-      try {
-        await apiService.deleteOrganization(id);
-        fetchOrganizations();
-      } catch (err: any) {
-        setError(err.message);
-      }
-    }
+    setConfirmState({
+      open: true,
+      message: "Are you sure you want to delete this organization? This action cannot be undone.",
+      onConfirm: async () => {
+        try {
+          await apiService.deleteOrganization(id);
+          fetchOrganizations();
+        } catch (err: any) {
+          setError(err.message);
+        }
+      },
+    });
   };
 
   const handleOpenWhatsAppConfig = async (org: Organization) => {
@@ -177,6 +182,46 @@ const Organizations: React.FC = () => {
                 New Organization
               </button>
             )}
+      {/* Confirm Dialog */}
+      {confirmState.open && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+          <div className="bg-white w-full max-w-md rounded-lg shadow p-6">
+            <h3 className="text-lg font-semibold mb-2">Confirm Action</h3>
+            <p className="text-sm text-gray-700 mb-6">{confirmState.message}</p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmState({ open: false, message: "" })}
+                className="px-4 py-2 bg-gray-100 rounded"
+              >
+                Cancel
+              </button>
+              {confirmState.onConfirm && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const cb = confirmState.onConfirm;
+                    setConfirmState({ open: false, message: "" });
+                    if (cb) await cb();
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white rounded"
+                >
+                  Confirm
+                </button>
+              )}
+              {!confirmState.onConfirm && (
+                <button
+                  type="button"
+                  onClick={() => setConfirmState({ open: false, message: "" })}
+                  className="px-4 py-2 bg-blue-600 text-white rounded"
+                >
+                  OK
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
           </div>
 
           {error && (

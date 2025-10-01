@@ -29,6 +29,7 @@ const Users: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [confirmState, setConfirmState] = useState<{ open: boolean; message: string; onConfirm?: () => Promise<void> | void }>({ open: false, message: '' });
 
   const [formData, setFormData] = useState({
     first_name: '',
@@ -114,14 +115,18 @@ const Users: React.FC = () => {
   };
 
   const handleDeleteUser = async (userId: string) => {
-    if (!window.confirm('Are you sure you want to delete this user?')) return;
-
-    try {
-      await apiService.deleteUser(userId);
-      fetchUsers();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to delete user');
-    }
+    setConfirmState({
+      open: true,
+      message: 'Are you sure you want to delete this user? This action cannot be undone.',
+      onConfirm: async () => {
+        try {
+          await apiService.deleteUser(userId);
+          fetchUsers();
+        } catch (err: any) {
+          setError(err.response?.data?.message || 'Failed to delete user');
+        }
+      },
+    });
   };
 
   const openEditModal = (user: User) => {
@@ -166,6 +171,47 @@ const Users: React.FC = () => {
               Add User
             </button>
           )}
+
+      {/* Confirm Dialog */}
+      {confirmState.open && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+          <div className="bg-white w-full max-w-md rounded-lg shadow p-6">
+            <h3 className="text-lg font-semibold mb-2">Confirm Action</h3>
+            <p className="text-sm text-gray-700 mb-6">{confirmState.message}</p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmState({ open: false, message: '' })}
+                className="px-4 py-2 bg-gray-100 rounded"
+              >
+                Cancel
+              </button>
+              {confirmState.onConfirm && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const cb = confirmState.onConfirm;
+                    setConfirmState({ open: false, message: '' });
+                    if (cb) await cb();
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white rounded"
+                >
+                  Confirm
+                </button>
+              )}
+              {!confirmState.onConfirm && (
+                <button
+                  type="button"
+                  onClick={() => setConfirmState({ open: false, message: '' })}
+                  className="px-4 py-2 bg-blue-600 text-white rounded"
+                >
+                  OK
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
         </div>
       </div>
 
