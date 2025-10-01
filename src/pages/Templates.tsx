@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import { Template, CreateTemplateRequest, UpdateTemplateRequest } from '../types/template';
 import { Organization } from '../types/organization';
-import { Plus, Search, Eye, Trash2, Send, Check, X } from 'lucide-react';
+import { Plus, Search, Eye, Trash2, Send, Check, X, Pencil } from 'lucide-react';
 
 type Category = 'MARKETING' | 'AUTHENTICATION' | 'UTILITY';
 type Status = 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED';
@@ -28,6 +28,8 @@ const Templates: React.FC = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [selected, setSelected] = useState<Template | null>(null);
+  // Confirm dialog state
+  const [confirmState, setConfirmState] = useState<{ open: boolean; message: string; onConfirm?: () => Promise<void> | void }>({ open: false, message: '' });
   // Preview state
   const [showPreview, setShowPreview] = useState(false);
   const [previewTitle, setPreviewTitle] = useState('');
@@ -268,14 +270,25 @@ const Templates: React.FC = () => {
   };
 
   const handleDelete = async (id: string, status: Status) => {
-    if (!(status === 'DRAFT' || status === 'REJECTED')) return alert('Only draft/rejected templates can be deleted');
-    if (!window.confirm('Delete this template?')) return;
-    try {
-      await api.deleteTemplate(id);
-      loadTemplates();
-    } catch (e: any) {
-      setError(e.response?.data?.message || 'Failed to delete template');
+    if (!(status === 'DRAFT' || status === 'REJECTED')) {
+      setConfirmState({
+        open: true,
+        message: 'Only draft/rejected templates can be deleted.',
+      });
+      return;
     }
+    setConfirmState({
+      open: true,
+      message: 'Are you sure you want to delete this template? This action cannot be undone.',
+      onConfirm: async () => {
+        try {
+          await api.deleteTemplate(id);
+          loadTemplates();
+        } catch (e: any) {
+          setError(e.response?.data?.message || 'Failed to delete template');
+        }
+      }
+    });
   };
 
   const submitTemplate = async (id: string) => { await api.submitTemplate(id); loadTemplates(); };
@@ -307,6 +320,46 @@ const Templates: React.FC = () => {
               Sync WhatsApp
             </button>
           )}
+      {/* Confirm Dialog */}
+      {confirmState.open && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+          <div className="bg-white w-full max-w-md rounded-lg shadow p-6">
+            <h3 className="text-lg font-semibold mb-2">Confirm Action</h3>
+            <p className="text-sm text-gray-700 mb-6">{confirmState.message}</p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmState({ open: false, message: '' })}
+                className="px-4 py-2 bg-gray-100 rounded"
+              >
+                Cancel
+              </button>
+              {confirmState.onConfirm && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const cb = confirmState.onConfirm;
+                    setConfirmState({ open: false, message: '' });
+                    if (cb) await cb();
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white rounded"
+                >
+                  Confirm
+                </button>
+              )}
+              {!confirmState.onConfirm && (
+                <button
+                  type="button"
+                  onClick={() => setConfirmState({ open: false, message: '' })}
+                  className="px-4 py-2 bg-blue-600 text-white rounded"
+                >
+                  OK
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
           {(user?.role === 'super_admin' || user?.role === 'system_admin' || user?.role === 'organization_admin') && (
             <button onClick={openCreate} className="bg-whatsapp-500 text-white px-4 py-2 rounded-lg hover:bg-whatsapp-600 flex items-center">
               <Plus className="h-4 w-4 mr-2" /> New Template
@@ -411,6 +464,11 @@ const Templates: React.FC = () => {
                             <X className="h-4 w-4" />
                           </button>
                         </>
+                      )}
+                      {(t.status === 'DRAFT' || t.status === 'REJECTED') && (user?.role === 'super_admin' || user?.role === 'system_admin' || user?.role === 'organization_admin') && (
+                        <button onClick={() => openEdit(t)} className="p-2 text-gray-600 hover:bg-gray-50 rounded" title="Update">
+                          <Pencil className="h-4 w-4" />
+                        </button>
                       )}
                       <button onClick={() => openPreview(t)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded" title="Preview">
                         <Eye className="h-4 w-4" />

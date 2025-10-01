@@ -222,6 +222,18 @@ const OrganizationApproval: React.FC = () => {
     }
   }, [showApproveModal, organizationId]);
 
+  // Normalize auto-reply flag from various backend shapes
+  const isAutoReply = (tpl: any): boolean => {
+    const v = tpl?.is_auto_reply_template ?? tpl?.isAutoReplyTemplate ?? tpl?.auto_reply ?? tpl?.is_auto_reply;
+    if (typeof v === 'boolean') return v;
+    if (typeof v === 'number') return v === 1;
+    if (typeof v === 'string') {
+      const s = v.toLowerCase();
+      return s === 'true' || s === 'yes' || s === '1';
+    }
+    return false;
+  };
+
   const openApproveModal = async (templateRow: any) => {
     try {
       const ident = getTemplateIdentifier(templateRow);
@@ -253,10 +265,10 @@ const OrganizationApproval: React.FC = () => {
         new Set(matches.map((m) => String(m[1])))
       );
 
-      // Build default params aligned to placeholder order using example values
+      // Initialize params aligned to placeholder order with EMPTY values (no defaults)
       const params: Record<string, string> = {};
-      placeholderOrder.forEach((ph, i) => {
-        params[ph] = exampleValues[i] ?? "";
+      placeholderOrder.forEach((ph) => {
+        params[ph] = "";
       });
 
       // Initialize button mappings for detected buttons
@@ -715,6 +727,23 @@ const OrganizationApproval: React.FC = () => {
                             </p>
                           </div>
                         </label>
+                        {/* Additional explicit mapping checkbox for template JSON flag */}
+                        <label className="mt-3 flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={isAutoReplyTemplate}
+                            onChange={(e) => setIsAutoReplyTemplate(e.target.checked)}
+                            className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <div>
+                            <span className="text-sm font-medium text-gray-800">
+                              Mark Template as Auto Reply (maps to is_auto_reply_template)
+                            </span>
+                            <p className="text-xs text-gray-500">
+                              When selected, the approval payload will include is_auto_reply_template: true
+                            </p>
+                          </div>
+                        </label>
                       </div>
 
                       {isAutoReplyTemplate && (
@@ -761,7 +790,7 @@ const OrganizationApproval: React.FC = () => {
                                       <option value="">
                                         Select a template to send...
                                       </option>
-                                      {approvedTemplates.map((template) => (
+                                      {approvedTemplates.filter((template) => isAutoReply(template)).map((template) => (
                                         <option
                                           key={template._id}
                                           value={

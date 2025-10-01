@@ -430,6 +430,46 @@ const CampaignDetails: React.FC = () => {
     (campaign as any)?.campaign_status ||
     undefined;
 
+  // Campaign lifecycle steps (in order)
+  const lifecycleSteps = [
+    "draft",
+    "pending_approval",
+    "approved",
+    "asset_generation",
+    "asset_generated",
+    "ready_to_launch",
+    "running",
+    "completed",
+  ] as const;
+
+  // Normalize status string to a lifecycle step token when possible
+  const normalizedStatus = useMemo(() => {
+    const raw = (campaignStatus || "").toString().trim().toLowerCase();
+    // tolerant mappings from other possible status names
+    const map: Record<string, string> = {
+      pending: "pending_approval",
+      approve: "approved",
+      approved: "approved",
+      generating_assets: "asset_generation",
+      assets_generated: "asset_generated",
+      ready: "ready_to_launch",
+      launch_ready: "ready_to_launch",
+      running: "running",
+      in_progress: "running",
+      done: "completed",
+      complete: "completed",
+      completed: "completed",
+      draft: "draft",
+    };
+    if (lifecycleSteps.includes(raw as any)) return raw;
+    return map[raw] || raw;
+  }, [campaignStatus]);
+
+  const currentStepIndex = useMemo(() => {
+    const idx = lifecycleSteps.indexOf(normalizedStatus as any);
+    return idx >= 0 ? idx : 0;
+  }, [normalizedStatus]);
+
   // Extract campaign statistics
   const campaignStats = useMemo(() => {
     if (!campaign) return null;
@@ -705,6 +745,37 @@ const CampaignDetails: React.FC = () => {
                 {campaignStats.totalFailed}
               </div>
               <div className="text-xs text-gray-500">Failed</div>
+            </div>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="mt-8">
+            <h3 className="text-sm font-medium text-gray-700 mb-3">Progress</h3>
+            <div className="flex items-center">
+              {lifecycleSteps.map((step, idx) => {
+                const reached = idx <= currentStepIndex;
+                const isLast = idx === lifecycleSteps.length - 1;
+                return (
+                  <div key={step} className="flex items-center flex-1">
+                    <div className={`flex flex-col items-center text-center ${!isLast ? 'mr-2 sm:mr-4' : ''}`} style={{ minWidth: 0 }}>
+                      <div
+                        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold ${
+                          reached ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'
+                        }`}
+                        title={step.replace(/_/g, ' ')}
+                      >
+                        {idx + 1}
+                      </div>
+                      <div className="mt-2 text-[10px] sm:text-xs text-gray-700 truncate max-w-[80px] sm:max-w-[120px]">
+                        {step.replace(/_/g, ' ')}
+                      </div>
+                    </div>
+                    {!isLast && (
+                      <div className={`flex-1 h-1 ${idx < currentStepIndex ? 'bg-green-500' : 'bg-gray-200'} rounded`}></div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

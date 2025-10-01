@@ -62,6 +62,7 @@ const AssetFiles: React.FC = () => {
 
   const [selected, setSelected] = useState<AssetFile | null>(null);
   const [versions, setVersions] = useState<any[]>([]);
+  const [confirmState, setConfirmState] = useState<{ open: boolean; message: string; onConfirm?: () => Promise<void> | void }>({ open: false, message: "" });
 
   // Update form (generic and tolerant)
   const [updateForm, setUpdateForm] = useState<{
@@ -81,6 +82,7 @@ const AssetFiles: React.FC = () => {
     file_content?: string;
   }>({});
   const [templateName, setTemplateName] = useState<string>("");
+  const [createErrors, setCreateErrors] = useState<{ file_name?: string; version?: string }>({});
 
   const canAdminAllOrgs =
     user?.role === "super_admin" || user?.role === "system_admin";
@@ -268,25 +270,27 @@ const AssetFiles: React.FC = () => {
   };
 
   const handleDelete = async (file: AssetFile) => {
-    if (!window.confirm(`Are you sure you want to delete "${file.file_name}"?`))
-      return;
-
-    try {
-      setLoading(true);
-      const id = file._id || file.id;
-      if (!id) {
-        setError("File ID is missing");
-        return;
+    setConfirmState({
+      open: true,
+      message: `Are you sure you want to delete "${file.file_name}"? This action cannot be undone.`,
+      onConfirm: async () => {
+        try {
+          setLoading(true);
+          const id = file._id || file.id;
+          if (!id) {
+            setError("File ID is missing");
+            return;
+          }
+          await api.deleteAssetFile(id);
+          await fetchFiles();
+          setError(null);
+        } catch (e: any) {
+          setError(e?.response?.data?.message || "Failed to delete asset file");
+        } finally {
+          setLoading(false);
+        }
       }
-
-      await api.deleteAssetFile(id);
-      await fetchFiles();
-      setError(null);
-    } catch (e: any) {
-      setError(e?.response?.data?.message || "Failed to delete asset file");
-    } finally {
-      setLoading(false);
-    }
+    });
   };
 
   const openVersions = async (file: AssetFile) => {
@@ -308,29 +312,27 @@ const AssetFiles: React.FC = () => {
   };
 
   const handleDeactivate = async (file: AssetFile) => {
-    if (
-      !window.confirm(
-        `Are you sure you want to deactivate "${file.file_name}"?`
-      )
-    )
-      return;
-
-    try {
-      setLoading(true);
-      const id = file._id || file.id;
-      if (!id) {
-        setError("File ID is missing");
-        return;
+    setConfirmState({
+      open: true,
+      message: `Are you sure you want to deactivate "${file.file_name}"?`,
+      onConfirm: async () => {
+        try {
+          setLoading(true);
+          const id = file._id || file.id;
+          if (!id) {
+            setError("File ID is missing");
+            return;
+          }
+          await api.updateAssetFile(id, { is_active: false });
+          await fetchFiles();
+          setError(null);
+        } catch (e: any) {
+          setError(e?.response?.data?.message || "Failed to deactivate asset file");
+        } finally {
+          setLoading(false);
+        }
       }
-
-      await api.updateAssetFile(id, { is_active: false });
-      await fetchFiles();
-      setError(null);
-    } catch (e: any) {
-      setError(e?.response?.data?.message || "Failed to deactivate asset file");
-    } finally {
-      setLoading(false);
-    }
+    });
   };
 
   const handleCreateVersion = async (e: React.FormEvent) => {
@@ -438,6 +440,47 @@ const AssetFiles: React.FC = () => {
             </div>
           </div>
         )}
+
+      {/* Confirm Dialog */}
+      {confirmState.open && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+          <div className="bg-white w-full max-w-md rounded-lg shadow p-6">
+            <h3 className="text-lg font-semibold mb-2">Confirm Action</h3>
+            <p className="text-sm text-gray-700 mb-6">{confirmState.message}</p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmState({ open: false, message: "" })}
+                className="px-4 py-2 bg-gray-100 rounded"
+              >
+                Cancel
+              </button>
+              {confirmState.onConfirm && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const cb = confirmState.onConfirm;
+                    setConfirmState({ open: false, message: "" });
+                    if (cb) await cb();
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white rounded"
+                >
+                  Confirm
+                </button>
+              )}
+              {!confirmState.onConfirm && (
+                <button
+                  type="button"
+                  onClick={() => setConfirmState({ open: false, message: "" })}
+                  className="px-4 py-2 bg-blue-600 text-white rounded"
+                >
+                  OK
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       </div>
 
       {error && (
@@ -997,48 +1040,40 @@ const AssetFiles: React.FC = () => {
               onSubmit={async (e) => {
                 e.preventDefault();
                 try {
-                  if (!templateId) throw new Error("Template ID is required");
+                  const fname = (createForm.file_name || '').trim();
+                  const ver = (createForm.version || '').trim();
+                  const errs: { file_name?: string; version?: string } = {};
+                  if (!/\.py$/i.test(fname)) errs.file_name = 'File name must end with .py';
+                  if (!/^\d+\.\d+$/.test(ver)) errs.version = 'Version must be in the format 0.1';
+                  if (Object.keys(errs).length) { setCreateErrors(errs); return; }
+                  setCreateErrors({});
+                  if (!templateId) throw new Error('Template ID is required');
                   await api.generateAssets(templateId, createForm);
                   setShowCreateAsset(false);
-                  // Keep filter by template and refresh list
-                  await fetchFiles();
+                  setTemplateId('');
+                  navigate('/asset-files');
                 } catch (e: any) {
-                  setError(
-                    e?.response?.data?.message || "Failed to generate asset"
-                  );
+                  setError(e?.response?.data?.message || 'Failed to generate asset');
                 }
               }}
               className="space-y-4"
             >
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    File Name
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700">File Name</label>
                   <input
-                    value={createForm.file_name || ""}
-                    onChange={(e) =>
-                      setCreateForm({
-                        ...createForm,
-                        file_name: e.target.value,
-                      })
-                    }
-                    className="mt-1 w-full border rounded px-3 py-2"
-                    placeholder="Enter file name"
+                    value={createForm.file_name || ''}
+                    onChange={(e) => setCreateForm({ ...createForm, file_name: e.target.value })}
+                    className={`mt-1 w-full border rounded px-3 py-2 ${createErrors.file_name ? 'border-red-500' : ''}`}
+                    placeholder="Enter file name (e.g., script.py)"
                   />
+                  {createErrors.file_name && (<p className="mt-1 text-xs text-red-600">{createErrors.file_name}</p>)}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Content Type
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700">Content Type</label>
                   <select
-                    value={createForm.typeofcontent || ""}
-                    onChange={(e) =>
-                      setCreateForm({
-                        ...createForm,
-                        typeofcontent: e.target.value,
-                      })
-                    }
+                    value={createForm.typeofcontent || ''}
+                    onChange={(e) => setCreateForm({ ...createForm, typeofcontent: e.target.value })}
                     className="mt-1 w-full border rounded px-3 py-2"
                   >
                     <option value="">Select Type</option>
@@ -1047,50 +1082,30 @@ const AssetFiles: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Description
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700">Description</label>
                   <input
-                    value={createForm.description || ""}
-                    onChange={(e) =>
-                      setCreateForm({
-                        ...createForm,
-                        description: e.target.value,
-                      })
-                    }
+                    value={createForm.description || ''}
+                    onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
                     className="mt-1 w-full border rounded px-3 py-2"
                     placeholder="Enter description"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Version
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700">Version</label>
                   <input
-                    value={createForm.version || ""}
-                    onChange={(e) =>
-                      setCreateForm({
-                        ...createForm,
-                        version: e.target.value,
-                      })
-                    }
-                    className="mt-1 w-full border rounded px-3 py-2"
-                    placeholder="v1"
+                    value={createForm.version || ''}
+                    onChange={(e) => setCreateForm({ ...createForm, version: e.target.value })}
+                    className={`mt-1 w-full border rounded px-3 py-2 ${createErrors.version ? 'border-red-500' : ''}`}
+                    placeholder="0.1"
                   />
+                  {createErrors.version && (<p className="mt-1 text-xs text-red-600">{createErrors.version}</p>)}
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  File Content
-                </label>
+                <label className="block text-sm font-medium text-gray-700">File Content</label>
                 <textarea
-                  value={createForm.file_content || ""}
-                  onChange={(e) =>
-                    setCreateForm({
-                      ...createForm,
-                      file_content: e.target.value,
-                    })
-                  }
+                  value={createForm.file_content || ''}
+                  onChange={(e) => setCreateForm({ ...createForm, file_content: e.target.value })}
                   rows={10}
                   className="mt-1 w-full border rounded px-3 py-2"
                   placeholder="Paste the Python code"
@@ -1099,20 +1114,12 @@ const AssetFiles: React.FC = () => {
               <div className="flex justify-end space-x-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowCreateAsset(false);
-                    navigate("/asset-files");
-                  }}
+                  onClick={() => { setShowCreateAsset(false); navigate('/asset-files'); }}
                   className="px-4 py-2 bg-gray-100 rounded hover:bg-gray-200"
                 >
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-whatsapp-500 text-white rounded hover:bg-whatsapp-600"
-                >
-                  Create
-                </button>
+                <button type="submit" className="px-4 py-2 bg-whatsapp-500 text-white rounded hover:bg-whatsapp-600">Create</button>
               </div>
             </form>
           </div>
