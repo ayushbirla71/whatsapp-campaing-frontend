@@ -7,12 +7,13 @@ export default function ChatWindow({ conversation }: any) {
   const [messages, setMessages] = useState<any[]>([]);
   const params = new URLSearchParams(window.location.search);
   const token = params.get("token");
+  const baseUrl = process.env.REACT_APP_API_URL;
 
   useEffect(() => {
     if (!conversation?.conversationId) return;
 
     fetch(
-      `http://localhost:3000/api/messages/${conversation.conversationId}/messages`,
+      `${baseUrl}/api/messages/${conversation.conversationId}/messages`,
       {
         headers: { Authorization: `Bearer ${token}` },
       }
@@ -36,7 +37,7 @@ export default function ChatWindow({ conversation }: any) {
         onSent={() => {
           // reload messages
           fetch(
-            `http://localhost:3000/api/messages/${conversation.conversationId}/messages`,
+            `${baseUrl}/api/messages/${conversation.conversationId}/messages`,
             { headers: { Authorization: `Bearer ${token}` } }
           )
             .then(res => res.json())
