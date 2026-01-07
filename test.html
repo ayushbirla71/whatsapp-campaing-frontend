@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>WhatsApp Plugin Test</title>
+
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        font-family: Arial, sans-serif;
+        background: #f5f5f5;
+      }
+
+      .container {
+        display: flex;
+        height: 100vh;
+      }
+
+      .left {
+        width: 280px;
+        padding: 16px;
+        background: #ffffff;
+        border-right: 1px solid #ddd;
+      }
+
+      .right {
+        flex: 1;
+        background: #eae6df;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      iframe {
+        width: 100%;
+        height: 100%;
+        border: none;
+        background: #ffffff;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+     
+
+      <div class="right">
+        <!-- 🔌 PLUGIN LOAD -->
+        <iframe
+          src="http://localhost:3001/plugin/whatsapp?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJmZTM5Y2JmYi01NDE5LTRiN2YtOGZjMi04OGFkZjVlNmZjYmYiLCJlbWFpbCI6Im9yZ2FkbWluMUBleGFtcGxlLmNvbSIsInJvbGUiOiJvcmdhbml6YXRpb25fYWRtaW4iLCJvcmdhbml6YXRpb25JZCI6ImU0MWI4ODc4LTJlM2EtNGU3MC04ZjM5LTc4YjA3MTlhNDkxZSIsImZpcnN0TmFtZSI6Ik9yZ2FuaXphdGlvbiIsImxhc3ROYW1lIjoiQWRtaW4iLCJpYXQiOjE3Njc3MDY3MTQsImV4cCI6MTc2Nzc5MzExNCwiYXVkIjoid2hhdHNhcHAtc2VydmVyLXVzZXJzIiwiaXNzIjoid2hhdHNhcHAtc2VydmVyIn0.Kkb5vwq_UU9mLlavBnnf5VYNL8NTv4iBC3ni5mjuvrc&orgId=e41b8878-2e3a-4e70-8f39-78b0719a491e"
+          style="width: 100%; height: 100%; border: none"
+        ></iframe>
+      </div>
+    </div>
+  </body>
+</html>

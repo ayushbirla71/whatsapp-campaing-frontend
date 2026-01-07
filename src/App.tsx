@@ -20,6 +20,7 @@ import CampaignDetails from "./pages/CampaignDetails";
 import ApprovalCampaign from "./pages/ApprovalCampaign";
 import AssetFiles from "./pages/AssetFiles";
 import Dashboard from "./pages/Dashboard";
+import WhatsAppPlugin from "./pages/plugin/WhatsAppPlugin";
 
 function App() {
   return (
@@ -28,6 +29,8 @@ function App() {
         <div className="App">
           <Routes>
             {/* Public routes */}
+            {/* Plugin route */}
+            <Route path="/plugin/whatsapp" element={<WhatsAppPlugin />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
 
