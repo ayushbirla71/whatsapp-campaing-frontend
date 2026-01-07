@@ -6,6 +6,7 @@ export default function WhatsAppPlugin() {
   const [conversations, setConversations] = useState<any[]>([]);
   const [activeConversation, setActiveConversation] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const baseUrl = process.env.REACT_APP_API_URL;
 
 
 
@@ -22,7 +23,7 @@ export default function WhatsAppPlugin() {
     localStorage.setItem("whatsapp_token", token);
 
     fetch(
-      `http://localhost:3000/api/messages/inbox?organizationId=${organizationId}`,
+      `${baseUrl}/api/messages/inbox?organizationId=${organizationId}`,
       {
         headers: {
           Authorization: `Bearer ${token}`,

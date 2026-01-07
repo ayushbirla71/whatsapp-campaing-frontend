@@ -5,6 +5,7 @@ export default function MessageComposer({ conversation, onSent }: any) {
   const [canSend, setCanSend] = useState(true);
   const [sending, setSending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+   const baseUrl = process.env.REACT_APP_API_URL;
 
   const params = new URLSearchParams(window.location.search);
   const token = params.get("token");
@@ -16,7 +17,7 @@ export default function MessageComposer({ conversation, onSent }: any) {
     if (!conversationId) return;
 
     fetch(
-      `http://localhost:3000/api/messages/${conversationId}/can-send`,
+      `${baseUrl}/api/messages/${conversationId}/can-send`,
       {
         headers: { Authorization: `Bearer ${token}` },
       }
@@ -71,7 +72,7 @@ export default function MessageComposer({ conversation, onSent }: any) {
     setSending(true);
 
     await fetch(
-      `http://localhost:3000/api/conversations/${conversationId}/messages`,
+      `${baseUrl}/api/conversations/${conversationId}/messages`,
       {
         method: "POST",
         headers: {
@@ -112,7 +113,7 @@ export default function MessageComposer({ conversation, onSent }: any) {
     form.append("file", file);
 
     const uploadRes = await fetch(
-      "http://localhost:3000/api/media/upload",
+      ` ${baseUrl}/api/media/upload`,
       {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
