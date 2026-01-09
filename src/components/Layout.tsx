@@ -32,6 +32,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: "Campaigns", href: "/campaigns", icon: Backpack },
     { name: "Audience", href: "/audience", icon: Users },
     { name: "Asset Files", href: "/asset-files", icon: Files },
+    {name:"Whatsapp Chat", href: "/whatsapp-chat", icon: Files }
   ];
 
   const handleLogout = async () => {
@@ -81,7 +82,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 const isActive = location.pathname === item.href;
                 const hasAccess =
                   user?.role === "super_admin" || user?.role === "system_admin";
-                if (item.name === "Asset Files" && !hasAccess) return null;
+                if (item.name == "Asset Files" && !hasAccess) return null;
+                if (item.name == "Whatsapp Chat" && hasAccess) return null;
                 return (
                   <Link
                     key={item.name}
@@ -146,6 +148,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <nav className="mt-5 flex-1 px-2 bg-white space-y-1">
                 {navigation.map((item) => {
                   const isActive = location.pathname === item.href;
+                  const hasAccess =
+                    user?.role === "super_admin" || user?.role === "system_admin";
+                  if (item.name == "Asset Files" && !hasAccess) return null;
+                  if (item.name == "Whatsapp Chat" && hasAccess) return null;
                   return (
                     <Link
                       key={item.name}

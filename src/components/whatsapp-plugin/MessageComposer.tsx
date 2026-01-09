@@ -1,247 +1,163 @@
 import { useEffect, useRef, useState } from "react";
+import api from "../../services/api";
+import { buildMessagePayload } from "./utils";
 
 export default function MessageComposer({ conversation, onSent }: any) {
   const [text, setText] = useState("");
   const [canSend, setCanSend] = useState(true);
-  const [sending, setSending] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-   const baseUrl = process.env.REACT_APP_API_URL;
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  const params = new URLSearchParams(window.location.search);
-  const token = params.get("token");
-
-  const conversationId = conversation?.conversationId;
-
-  /* 🔐 Check 24-hour window */
   useEffect(() => {
-    if (!conversationId) return;
+    if (!conversation?.conversationId) return;
 
-    fetch(
-      `${baseUrl}/api/messages/${conversationId}/can-send`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      }
-    )
-      .then(res => res.json())
-      .then(res => setCanSend(res.canSend))
-      .catch(() => setCanSend(false));
-  }, [conversationId, token]);
+    api.getIsActiveConversation(conversation.conversationId).then((res) => {
+      setCanSend(Boolean(res?.canSend));
+    });
+  }, [conversation?.conversationId]);
 
-  /* 🧠 Unified payload builder */
-  const buildPayload = (type: string, data: any) => {
-    switch (type) {
-      case "text":
-        return {
-          messageType: "text",
-          messageContent: data.text,
-        };
-
-      case "image":
-        return {
-          messageType: "image",
-          mediaUrl: data.url,
-          mediaType: "image",
-          caption: data.caption || "",
-        };
-
-      case "document":
-        return {
-          messageType: "document",
-          mediaUrl: data.url,
-          mediaType: "document",
-          caption: data.caption || "",
-        };
-
-      case "template":
-        return {
-          messageType: "template",
-          templateName: data.templateName,
-          templateLanguage: "en_US",
-          templateParameters: data.parameters || [],
-        };
-
-      default:
-        throw new Error("Unsupported message type");
-    }
-  };
-
-  /* 🚀 Send message to backend */
-  const sendMessage = async (payload: any) => {
-    if (!conversationId) return;
-
-    setSending(true);
-
-    await fetch(
-      `${baseUrl}/api/conversations/${conversationId}/messages`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      }
-    );
-
-    setSending(false);
-    onSent?.();
-  };
-
-  /* 💬 Send text */
   const sendText = async () => {
     if (!text.trim()) return;
 
-    if (!canSend) {
-      alert("24-hour window expired. Please use a template.");
-      return;
-    }
-
-    const payload = buildPayload("text", { text });
-    await sendMessage(payload);
-    setText("");
-  };
-
-  /* 📎 Upload media → send */
-  const handleFile = async (file: File) => {
-    if (!canSend) {
-      alert("24-hour window expired. Media not allowed.");
-      return;
-    }
-
-    // 1️⃣ Upload file (example endpoint)
-    const form = new FormData();
-    form.append("file", file);
-
-    const uploadRes = await fetch(
-      ` ${baseUrl}/api/media/upload`,
-      {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: form,
-      }
-    ).then(res => res.json());
-
-    const fileUrl = uploadRes.url;
-
-    // 2️⃣ Build message payload
-    const payload = buildPayload(
-      file.type.startsWith("image/") ? "image" : "document",
-      { url: fileUrl, caption: file.name }
+    await api.sendMessage(
+      conversation.conversationId,
+      buildMessagePayload("text", { text })
     );
 
-    await sendMessage(payload);
+    setText("");
+    onSent();
   };
 
-  /* 📩 Example template send (use when canSend=false) */
-  const sendTemplate = async () => {
-    const payload = buildPayload("template", {
-      templateName: "hello_user",
-      parameters: [{ type: "text", text: conversation?.name || "User" }],
-    });
+  /**
+   * 📎 MEDIA UPLOAD FLOW
+   */
+  const sendFile = async (file: File) => {
+    try {
+      setUploading(true);
 
-    await sendMessage(payload);
+      // 1️⃣ Upload to backend (S3)
+      const uploadRes = await api.uploadMedia(file);
+      const url = uploadRes.data.url;
+
+      // 2️⃣ Detect type
+      let type: "image" | "video" | "audio" | "document" = "document";
+
+      if (file.type.startsWith("image")) type = "image";
+      else if (file.type.startsWith("video")) type = "video";
+      else if (file.type.startsWith("audio")) type = "audio";
+
+      // 3️⃣ Send WhatsApp message
+      await api.sendMessage(
+        conversation.conversationId,
+        buildMessagePayload(type, {
+          url,
+          caption: file.name,
+        })
+      );
+
+      onSent();
+    } catch (err) {
+      console.error("Media upload failed", err);
+      alert("Failed to upload file");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
   };
 
+  /**
+   * ⛔ WINDOW EXPIRED
+   */
+  if (!canSend) {
+    return (
+      <div style={styles.expiredWrapper}>
+        ⏰ 24-hour messaging window expired.
+        <br />
+        You can only send WhatsApp template messages.
+      </div>
+    );
+  }
+
+  /**
+   * ✅ NORMAL COMPOSER
+   */
   return (
     <div style={styles.wrapper}>
-      {!canSend && (
-        <div style={styles.warning}>
-          ⏰ 24-hour window expired — only templates allowed
-          <button style={styles.templateBtn} onClick={sendTemplate}>
-            Send Template
-          </button>
-        </div>
-      )}
+      <button
+        style={styles.attachBtn}
+        onClick={() => fileRef.current?.click()}
+        title="Attach"
+        disabled={uploading}
+      >
+        📎
+      </button>
 
-      <div style={styles.row}>
-        <button
-          disabled={!canSend || sending}
-          onClick={() => fileInputRef.current?.click()}
-          style={styles.attach}
-        >
-          📎
-        </button>
+      <input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Type a message"
+        style={styles.input}
+        disabled={uploading}
+      />
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          hidden
-          accept="image/*,application/pdf"
-          onChange={e => {
-            const file = e.target.files?.[0];
-            if (file) handleFile(file);
-            e.target.value = "";
-          }}
-        />
+      <button
+        onClick={sendText}
+        style={styles.sendBtn}
+        disabled={uploading}
+      >
+        ➤
+      </button>
 
-        <input
-          disabled={!canSend || sending}
-          value={text}
-          onChange={e => setText(e.target.value)}
-          placeholder="Type a message"
-          style={styles.input}
-        />
-
-        <button
-          disabled={!canSend || sending}
-          onClick={sendText}
-          style={styles.send}
-        >
-          ➤
-        </button>
-      </div>
+      <input
+        ref={fileRef}
+        type="file"
+        hidden
+        accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
+        onChange={(e) =>
+          e.target.files && sendFile(e.target.files[0])
+        }
+      />
     </div>
   );
 }
 
-/* 🎨 Styles */
 const styles = {
   wrapper: {
-    padding: 10,
+    display: "flex",
+    gap: 8,
+    padding: "8px 10px",
     background: "#f0f2f5",
     borderTop: "1px solid #ddd",
-  },
-  warning: {
-    fontSize: 12,
-    color: "#d93025",
-    marginBottom: 6,
-    display: "flex",
-    justifyContent: "space-between",
     alignItems: "center",
   },
-  templateBtn: {
-    fontSize: 12,
-    padding: "4px 8px",
-    borderRadius: 6,
+  expiredWrapper: {
+    padding: "10px",
+    textAlign: "center" as const,
+    background: "#f0f2f5",
+    borderTop: "1px solid #ddd",
+    fontSize: 13,
+    color: "#667781",
+  },
+  attachBtn: {
     border: "none",
-    cursor: "pointer",
-    background: "#25d366",
-    color: "#fff",
-  },
-  row: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-  },
-  attach: {
-    fontSize: 18,
     background: "transparent",
-    border: "none",
+    fontSize: 20,
     cursor: "pointer",
   },
   input: {
     flex: 1,
-    padding: 10,
+    padding: "8px 12px",
     borderRadius: 20,
     border: "1px solid #ccc",
     outline: "none",
   },
-  send: {
-    padding: "6px 14px",
-    borderRadius: 20,
-    background: "#25d366",
-    color: "#fff",
+  sendBtn: {
     border: "none",
+    background: "#00a884",
+    color: "#fff",
+    borderRadius: "50%",
+    width: 36,
+    height: 36,
     cursor: "pointer",
   },
 } as const;

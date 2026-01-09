@@ -21,6 +21,7 @@ import ApprovalCampaign from "./pages/ApprovalCampaign";
 import AssetFiles from "./pages/AssetFiles";
 import Dashboard from "./pages/Dashboard";
 import WhatsAppPlugin from "./pages/plugin/WhatsAppPlugin";
+import WhatsappChatBox from "./pages/WhatsappChatBox";
 
 function App() {
   return (
@@ -135,6 +136,21 @@ function App() {
               }
             />
             <Route
+              path="/whatsapp-chat"
+              element={
+                <ProtectedRoute
+                  requiredRoles={[
+                    "organization_admin",
+                    "user",
+                  ]}
+                >
+                  <Layout>
+                    <WhatsappChatBox />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/asset-files"
               element={
                 <ProtectedRoute requiredRoles={["super_admin", "system_admin"]}>
@@ -188,6 +204,8 @@ function App() {
                 </ProtectedRoute>
               }
             />
+
+
             <Route
               path="/unauthorized"
               element={
@@ -203,6 +221,8 @@ function App() {
                 </div>
               }
             />
+
+
 
             {/* Dashboard route */}
             <Route

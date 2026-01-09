@@ -34,6 +34,7 @@ export interface AuthResponse {
 }
 
 export interface ApiResponse<T = any> {
+  canSend: boolean;
   success: boolean;
   message: string;
   data?: T;

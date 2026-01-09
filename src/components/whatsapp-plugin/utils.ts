@@ -1,13 +1,26 @@
+export function buildMessagePayload(type: string, data: any) {
+  switch (type) {
+    case "text":
+      return { messageType: "text", messageContent: data.text };
 
+    case "image":
+    case "document":
+      return {
+        messageType: type,
+        mediaUrl: data.url,
+        mediaType: type,
+        caption: data.caption || "",
+      };
 
-export function renderTemplate(components: any[], params: any[]) {
-  const body = components?.find((c) => c.type === "BODY")?.text;
-  if (!body) return "";
+    case "template":
+      return {
+        messageType: "template",
+        templateName: data.templateName,
+        templateLanguage: "en_US",
+        templateParameters: data.parameters || [],
+      };
 
-  let text = body;
-  params?.forEach((p: any, i: number) => {
-    text = text.replace(`{{${i + 1}}}`, p.value);
-  });
-
-  return text;
+    default:
+      throw new Error("Unsupported message type");
+  }
 }
