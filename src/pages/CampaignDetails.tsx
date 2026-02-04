@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ChevronDown, ChevronRight, MessageCircle } from "lucide-react";
+import { ChevronDown, ChevronRight, Info, MessageCircle } from "lucide-react";
 import { toast } from "react-toastify";
 import api from "../services/api";
 import { Campaign } from "../types/campaign";
@@ -21,7 +21,7 @@ const CampaignDetails: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [includeReplies, setIncludeReplies] = useState(false);
   const [expandedReplies, setExpandedReplies] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
 
   const toggleReplies = (audienceId: string) => {
@@ -48,10 +48,30 @@ const CampaignDetails: React.FC = () => {
   const [bulkConfirmed, setBulkConfirmed] = useState(false);
   const [bulkUploading, setBulkUploading] = useState(false);
   const [bulkErrors, setBulkErrors] = useState<Array<Record<string, string>>>(
-    []
+    [],
   ); // per-row field->error
   // Only MSISDN and template params shown in form (name auto-generated)
-  const [addMsisdn, setAddMsisdn] = useState("");
+  // const [addMsisdn, setAddMsisdn] = useState("");
+  const [audiences, setAudiences] = useState([
+    {
+      msisdn: "",
+      tplParams: {} as Record<string, string>,
+    },
+  ]);
+  const addMoreAudience = () => {
+    setAudiences((prev) => [
+      ...prev,
+      {
+        msisdn: "",
+        tplParams: {},
+      },
+    ]);
+  };
+
+  const removeAudience = (index: number) => {
+    setAudiences((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -106,10 +126,11 @@ const CampaignDetails: React.FC = () => {
         const list = Array.isArray(data.campaign_audience)
           ? data.campaign_audience
           : Array.isArray(data.audience)
-          ? data.audience
-          : Array.isArray(data.items)
-          ? data.items
-          : [];
+            ? data.audience
+            : Array.isArray(data.items)
+              ? data.items
+              : [];
+        // console.log("data of audience:-", list, data.campaign_audience);
         setAudience(list);
         const tp = data?.pagination?.totalPages ?? 1;
         setTotalPages(typeof tp === "number" && tp > 0 ? tp : 1);
@@ -186,10 +207,10 @@ const CampaignDetails: React.FC = () => {
       }
       // Compute placeholders order from body text
       const matches = Array.from(
-        String(bodyText || "").matchAll(/\{\{\s*(\d+)\s*\}\}/g)
+        String(bodyText || "").matchAll(/\{\{\s*(\d+)\s*\}\}/g),
       );
       const placeholderOrder = Array.from(
-        new Set(matches.map((m) => String(m[1])))
+        new Set(matches.map((m) => String(m[1]))),
       );
       // Build params with keys '{{n}}'
       const params: Record<string, string> = {};
@@ -236,7 +257,7 @@ const CampaignDetails: React.FC = () => {
   const templateAttributeKeys = useMemo(() => {
     if (!tplPlaceholders || tplPlaceholders.length === 0) return [] as string[];
     const keys = tplPlaceholders.map((ph) =>
-      tplLabels && tplLabels[ph] ? String(tplLabels[ph]).trim() : `param_${ph}`
+      tplLabels && tplLabels[ph] ? String(tplLabels[ph]).trim() : `param_${ph}`,
     );
     // Remove any 'name' key to avoid duplication with the top-level name column
     return keys.filter((k) => k.toLowerCase() !== "name");
@@ -306,7 +327,7 @@ const CampaignDetails: React.FC = () => {
         ]) as [string, string][];
         const getVal = (key: string) => {
           const found = normEntries.find(
-            ([k]) => k.toLowerCase() === key.toLowerCase()
+            ([k]) => k.toLowerCase() === key.toLowerCase(),
           );
           return found ? found[1] : "";
         };
@@ -336,7 +357,7 @@ const CampaignDetails: React.FC = () => {
     rowIdx: number,
     key: string,
     value: string,
-    isAttribute: boolean
+    isAttribute: boolean,
   ) => {
     setBulkRows((prev) => {
       const next = [...prev];
@@ -367,7 +388,7 @@ const CampaignDetails: React.FC = () => {
     const hasAnyError = errs.some((er) => Object.keys(er).length > 0);
     if (hasAnyError) {
       toast.error(
-        "Please fix required fields highlighted in red before confirming"
+        "Please fix required fields highlighted in red before confirming",
       );
       return;
     }
@@ -407,7 +428,7 @@ const CampaignDetails: React.FC = () => {
       toast.error(
         e?.response?.data?.message ||
           e?.message ||
-          "Failed to submit bulk audience"
+          "Failed to submit bulk audience",
       );
     }
   };
@@ -497,7 +518,101 @@ const CampaignDetails: React.FC = () => {
     return obj;
   };
 
+  // const handleSubmitAddAudience = async () => {
+  //   setSubmitError(null);
+  //   if (!id) {
+  //     setSubmitError("Invalid campaign ID.");
+  //     return;
+  //   }
+  //   if (!campaign?.organization_id) {
+  //     setSubmitError("Missing organization for this campaign.");
+  //     return;
+  //   }
+  //   // Only template parameters and msisdn are shown; name is generated
+  //   setSubmitting(true);
+  //   try {
+  //     // Build attributes strictly from user-entered values mapped to human-readable labels.
+  //     // Rules:
+  //     // - Use placeholder label (from tplLabels) if available; otherwise a stable key like param_<n>.
+  //     // - Do NOT include raw placeholder keys like {{1}}.
+  //     // - Do NOT include example text as keys or any duplicates.
+  //     // - Only include entries where the user provided a non-empty value (no example fallbacks).
+  //     const attributes: Record<string, any> = {};
+  //     if (tplPlaceholders.length > 0) {
+  //       tplPlaceholders.forEach((ph) => {
+  //         const keyTpl = `{{${ph}}}`;
+  //         const label =
+  //           tplLabels && tplLabels[ph]
+  //             ? String(tplLabels[ph]).trim()
+  //             : `param_${ph}`;
+  //         const rawVal =
+  //           tplParams && typeof tplParams[keyTpl] !== "undefined"
+  //             ? String(tplParams[keyTpl])
+  //             : "";
+  //         const val = rawVal.trim();
+  //         if (val) {
+  //           // Only set if not already set to avoid duplicates
+  //           if (typeof attributes[label] === "undefined") {
+  //             attributes[label] = val;
+  //           }
+  //         }
+  //       });
+  //     }
+  //     // Backend currently validates name and msisdn; provide minimal defaults silently
+  //     const defaultName = `Audience ${Date.now()}`;
+  //     // Use a generic 12-digit MSISDN with country code prefix (adjust if your backend enforces a specific format)
+  //     const defaultMsisdn = "910000000000";
+  //     // Create master audience record for the organization with required fields
+  //     const userProvidedName =
+  //       typeof attributes["name"] === "string"
+  //         ? String(attributes["name"]).trim()
+  //         : "";
+  //     const finalName = userProvidedName || defaultName;
+  //     const body: any = {
+  //       name: finalName,
+  //       msisdn: addMsisdn?.trim() || defaultMsisdn,
+  //       attributes,
+  //     };
+  //     // console.log("campaignid:-", campaign.id);
+  //     const createRes: any = await api.createMasterAudienceRecord(
+  //       campaign.organization_id,
+  //       body,
+  //       campaign.id,
+  //     );
+  //     const data: any = createRes?.data ?? createRes;
+  //     const aud = data?.audience || data?.item || data?.result || data;
+  //     // Build audience object required by backend (name, msisdn, attributes)
+  //     const audienceObj = {
+  //       name: aud?.name || finalName,
+  //       msisdn: aud?.msisdn || aud?.phone_number || body.msisdn,
+  //       attributes,
+  //     };
+  //     if (!audienceObj.msisdn) {
+  //       throw new Error("Missing msisdn for audience");
+  //     }
+  //     // Link to campaign using addAudienceToCampaign endpoint with object payload
+  //     await api.addAudienceToCampaign(id, [audienceObj]);
+  //     // Refresh list and close modal
+  //     await loadAudience(page);
+  //     setShowAddAudience(false);
+  //     setAddMsisdn("");
+  //     toast.success("Audience added to campaign");
+  //     // nothing else to reset
+  //   } catch (e: any) {
+  //     const msg =
+  //       e?.response?.data?.message ||
+  //       e?.message ||
+  //       "Failed to add audience to campaign";
+  //     setSubmitError(msg);
+  //     toast.error(msg);
+  //   } finally {
+  //     setSubmitting(false);
+  //   }
+  // };
+
   const handleSubmitAddAudience = async () => {
+    // setSubmitError(null);
+
     setSubmitError(null);
     if (!id) {
       setSubmitError("Invalid campaign ID.");
@@ -507,79 +622,53 @@ const CampaignDetails: React.FC = () => {
       setSubmitError("Missing organization for this campaign.");
       return;
     }
-    // Only template parameters and msisdn are shown; name is generated
+
     setSubmitting(true);
     try {
-      // Build attributes strictly from user-entered values mapped to human-readable labels.
-      // Rules:
-      // - Use placeholder label (from tplLabels) if available; otherwise a stable key like param_<n>.
-      // - Do NOT include raw placeholder keys like {{1}}.
-      // - Do NOT include example text as keys or any duplicates.
-      // - Only include entries where the user provided a non-empty value (no example fallbacks).
-      const attributes: Record<string, any> = {};
-      if (tplPlaceholders.length > 0) {
+      const audiencePayload = audiences.map((aud, index) => {
+        const attributes: Record<string, any> = {};
+
         tplPlaceholders.forEach((ph) => {
           const keyTpl = `{{${ph}}}`;
-          const label =
-            tplLabels && tplLabels[ph]
-              ? String(tplLabels[ph]).trim()
-              : `param_${ph}`;
-          const rawVal =
-            tplParams && typeof tplParams[keyTpl] !== "undefined"
-              ? String(tplParams[keyTpl])
-              : "";
-          const val = rawVal.trim();
-          if (val) {
-            // Only set if not already set to avoid duplicates
-            if (typeof attributes[label] === "undefined") {
-              attributes[label] = val;
-            }
-          }
+          const label = tplLabels[ph] || `param_${ph}`;
+          const val = aud.tplParams[keyTpl]?.trim();
+          if (val) attributes[label] = val;
         });
-      }
-      // Backend currently validates name and msisdn; provide minimal defaults silently
-      const defaultName = `Audience ${Date.now()}`;
-      // Use a generic 12-digit MSISDN with country code prefix (adjust if your backend enforces a specific format)
-      const defaultMsisdn = "910000000000";
-      // Create master audience record for the organization with required fields
-      const userProvidedName =
-        typeof attributes["name"] === "string"
-          ? String(attributes["name"]).trim()
-          : "";
-      const finalName = userProvidedName || defaultName;
-      const body: any = {
-        name: finalName,
-        msisdn: addMsisdn?.trim() || defaultMsisdn,
-        attributes,
-      };
-      const createRes: any = await api.createMasterAudienceRecord(
-        campaign.organization_id,
-        body
+
+        return {
+          name: `Audience ${Date.now()}_${index}`,
+          msisdn: aud.msisdn || "910000000000",
+          attributes,
+        };
+      });
+
+      // CORRECT CALL
+      const createRes: any = await api.addAudienceToCampaign(
+        campaign.id,
+        audiencePayload,
       );
+
       const data: any = createRes?.data ?? createRes;
-      const aud = data?.audience || data?.item || data?.result || data;
-      // Build audience object required by backend (name, msisdn, attributes)
-      const audienceObj = {
-        name: aud?.name || finalName,
-        msisdn: aud?.msisdn || aud?.phone_number || body.msisdn,
-        attributes,
-      };
-      if (!audienceObj.msisdn) {
-        throw new Error("Missing msisdn for audience");
+      // console.log("data:-", data);
+      if (data?.failed > 0 && Array.isArray(data.errors)) {
+        data.errors.forEach((err: any, idx: number) => {
+          const phone = err?.data?.msisdn ? ` (${err.data.msisdn})` : "";
+
+          toast.error(
+            `Audience ${idx + 1}${phone}: ${err.error || "Invalid data"}`,
+          );
+        });
+
+        return; // keep modal open
       }
-      // Link to campaign using addAudienceToCampaign endpoint with object payload
-      await api.addAudienceToCampaign(id, [audienceObj]);
-      // Refresh list and close modal
+
       await loadAudience(page);
       setShowAddAudience(false);
-      setAddMsisdn("");
-      toast.success("Audience added to campaign");
-      // nothing else to reset
+      setAudiences([{ msisdn: "", tplParams: {} }]);
+      toast.success("Audiences added successfully");
     } catch (e: any) {
       const msg =
-        e?.response?.data?.message ||
-        e?.message ||
-        "Failed to add audience to campaign";
+        e?.response?.data?.message || e?.message || "Failed to add audience";
       setSubmitError(msg);
       toast.error(msg);
     } finally {
@@ -599,7 +688,7 @@ const CampaignDetails: React.FC = () => {
       case "failed":
         return item.failed_at;
       default:
-        return null;
+        return item.created_at;
     }
   };
 
@@ -607,6 +696,8 @@ const CampaignDetails: React.FC = () => {
     if (!timestamp) return "-";
     return new Date(timestamp).toLocaleString();
   };
+
+  // console.log("capegn data:-", campaign);
 
   return (
     <div className="p-6">
@@ -651,7 +742,7 @@ const CampaignDetails: React.FC = () => {
               <div className="text-xs text-gray-500">Status</div>
               <span
                 className={`px-2 py-1 rounded-full text-xs font-semibold ${getCampaignStatusClass(
-                  campaignStatus
+                  campaignStatus,
                 )}`}
               >
                 {(campaignStatus || "-").toString().toLowerCase()}
@@ -736,12 +827,14 @@ const CampaignDetails: React.FC = () => {
               >
                 Bulk Add Audience
               </button>
-              <button
-                onClick={openAddAudience}
-                className="px-3 py-2 bg-whatsapp-500 text-white rounded hover:bg-whatsapp-600"
-              >
-                Add Audience
-              </button>
+              {(campaign?.status as any) !== "ready_to_launch" && (
+                <button
+                  onClick={openAddAudience}
+                  className="px-3 py-2 bg-whatsapp-500 text-white rounded hover:bg-whatsapp-600"
+                >
+                  Add Audience
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -775,7 +868,31 @@ const CampaignDetails: React.FC = () => {
                     colSpan={includeReplies ? 5 : 4}
                     className="px-6 py-4 text-center text-gray-500"
                   >
-                    Loading...
+                    <div className="flex h-10 items-center justify-center gap-2 text-gray-500">
+                      <svg
+                        className="h-5 w-5 animate-spin text-gray-500"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        aria-label="Loading"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                        />
+                      </svg>
+
+                      <span className="text-sm">Loading…</span>
+                    </div>
                   </td>
                 </tr>
               ) : !Array.isArray(audience) || audience.length === 0 ? (
@@ -806,6 +923,21 @@ const CampaignDetails: React.FC = () => {
                     (ca as any)?.audience_id ||
                     idx;
                   const isExpanded = expandedReplies.has(key);
+                  const failureResponse = (ca as any)?.failure_response;
+
+                  // console.log("ca:-", ca);
+                  let failureReason: any = null;
+
+                  if ((ca as any)?.failure_reason) {
+                    try {
+                      failureReason = JSON.parse((ca as any).failure_reason);
+                    } catch (e) {
+                      console.error(
+                        "Invalid failure_reason JSON",
+                        (ca as any).failure_reason,
+                      );
+                    }
+                  }
 
                   return (
                     <>
@@ -814,15 +946,69 @@ const CampaignDetails: React.FC = () => {
                           {name}
                         </td>
                         <td className="px-6 py-4 text-sm">{phone}</td>
-                        <td className="px-6 py-4 text-sm">
+                        {/* <td className="px-6 py-4 text-sm">
                           <span
                             className={`px-2 py-1 rounded-full text-xs font-semibold ${getAudienceStatusClass(
-                              status
+                              status,
                             )}`}
                           >
                             {(status || "-").toString().toLowerCase()}
                           </span>
+                        </td> */}
+                        <td className="px-6 py-4 text-sm">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`px-2 py-1 rounded-full text-xs font-semibold ${getAudienceStatusClass(
+                                status,
+                              )}`}
+                            >
+                              {(status || "-").toString().toLowerCase()}
+                            </span>
+
+                            {/* Info tooltip only for FAILED */}
+                            {status?.toString().toLowerCase() === "failed" &&
+                              failureReason && (
+                                <div className="relative group">
+                                  {/* Info Icon */}
+                                  <Info className="h-4 w-4 text-gray-400 cursor-pointer" />
+
+                                  {/* Tooltip */}
+                                  <div className="absolute left-1/2 top-6 z-20 hidden w-72 -translate-x-1/2 rounded-md border border-gray-200 bg-white p-3 text-xs text-gray-700 shadow-lg group-hover:block">
+                                    <div className="font-semibold text-gray-900 mb-1">
+                                      {failureReason.title || "Failure reason"}
+                                    </div>
+
+                                    {failureReason.error_data?.details && (
+                                      <div className="text-gray-600 mb-2">
+                                        {failureReason.error_data.details}
+                                      </div>
+                                    )}
+
+                                    {failureReason.code && (
+                                      <div className="text-gray-500">
+                                        Code:{" "}
+                                        <span className="font-medium text-gray-700">
+                                          {failureReason.code}
+                                        </span>
+                                      </div>
+                                    )}
+
+                                    {failureReason.href && (
+                                      <a
+                                        href={failureReason.href}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="mt-2 inline-block text-blue-600 underline"
+                                      >
+                                        View error docs
+                                      </a>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                          </div>
                         </td>
+
                         <td className="px-6 py-4 text-sm text-gray-600">
                           {formatTimestamp(timestamp)}
                         </td>
@@ -929,8 +1115,8 @@ const CampaignDetails: React.FC = () => {
                 {submitError}
               </div>
             )}
-            <div className="space-y-4 overflow-y-auto pr-2 -mr-2 flex-1">
-              {/* MSISDN field */}
+            {/* <div className="space-y-4 overflow-y-auto pr-2 -mr-2 flex-1">
+             
               <div>
                 <label className="block text-sm font-medium text-gray-700">
                   Phone (MSISDN)
@@ -942,7 +1128,7 @@ const CampaignDetails: React.FC = () => {
                   placeholder="e.g. 919876543210"
                 />
               </div>
-              {/* Dynamic Template Parameters */}
+             
               {tplPlaceholders.length > 0 && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
@@ -983,7 +1169,75 @@ const CampaignDetails: React.FC = () => {
                   </div>
                 </div>
               )}
+            </div> */}
+            <div className="space-y-6 overflow-y-auto pr-2 -mr-2 flex-1">
+              {audiences.map((aud, aIndex) => (
+                <div key={aIndex} className="border rounded p-4 space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h4 className="font-semibold text-sm">
+                      Audience {aIndex + 1}
+                    </h4>
+                    {audiences.length > 1 && (
+                      <button
+                        onClick={() => removeAudience(aIndex)}
+                        className="text-red-500 text-xs"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+
+                  {/* MSISDN */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Phone (MSISDN)
+                    </label>
+                    <input
+                      value={aud.msisdn}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setAudiences((prev) => {
+                          const copy = [...prev];
+                          copy[aIndex].msisdn = val;
+                          return copy;
+                        });
+                      }}
+                      className="mt-1 w-full border rounded px-3 py-2"
+                      placeholder="e.g. 919876543210"
+                    />
+                  </div>
+
+                  {/* Template Parameters */}
+                  {tplPlaceholders.length > 0 && (
+                    <div className="space-y-2">
+                      {tplPlaceholders.map((ph, idx) => {
+                        const key = `{{${ph}}}`;
+                        const label = tplLabels[ph] || key;
+                        const exampleVal = tplExamples[idx] ?? "";
+
+                        return (
+                          <input
+                            key={key}
+                            className="w-full border rounded px-3 py-2"
+                            placeholder={exampleVal || label}
+                            value={aud.tplParams[key] ?? ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setAudiences((prev) => {
+                                const copy = [...prev];
+                                copy[aIndex].tplParams[key] = val;
+                                return copy;
+                              });
+                            }}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
+
             <div className="flex justify-end gap-2 pt-3 border-t mt-4">
               <button
                 onClick={() => {
@@ -996,6 +1250,13 @@ const CampaignDetails: React.FC = () => {
               >
                 Cancel
               </button>
+              <button
+                onClick={addMoreAudience}
+                className="px-4 py-2 bg-blue-100 text-blue-700 rounded"
+              >
+                + Add More
+              </button>
+
               <button
                 onClick={handleSubmitAddAudience}
                 disabled={submitting}
@@ -1112,7 +1373,7 @@ const CampaignDetails: React.FC = () => {
                                   idx,
                                   "name",
                                   e.target.value,
-                                  false
+                                  false,
                                 )
                               }
                               className={`w-44 border rounded px-2 py-1 text-sm ${
@@ -1142,7 +1403,7 @@ const CampaignDetails: React.FC = () => {
                                   idx,
                                   "msisdn",
                                   e.target.value,
-                                  false
+                                  false,
                                 )
                               }
                               className={`w-56 border rounded px-2 py-1 text-sm ${
