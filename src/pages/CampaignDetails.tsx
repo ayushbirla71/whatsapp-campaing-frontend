@@ -9,6 +9,7 @@ import {
   CampaignAudienceListResponse,
 } from "../types/audience";
 import * as XLSX from "xlsx";
+import { fileURLToPath } from "url";
 
 const CampaignDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -54,6 +55,7 @@ const CampaignDetails: React.FC = () => {
   // const [addMsisdn, setAddMsisdn] = useState("");
   const [audiences, setAudiences] = useState([
     {
+      name: "",
       msisdn: "",
       tplParams: {} as Record<string, string>,
     },
@@ -62,6 +64,7 @@ const CampaignDetails: React.FC = () => {
     setAudiences((prev) => [
       ...prev,
       {
+        name: "",
         msisdn: "",
         tplParams: {},
       },
@@ -635,12 +638,20 @@ const CampaignDetails: React.FC = () => {
           if (val) attributes[label] = val;
         });
 
+        const userProvidedName =
+          typeof attributes["John"] === "string"
+            ? String(attributes["John"]).trim()
+            : "";
+        const finalName = userProvidedName;
+
         return {
-          name: `Audience ${Date.now()}_${index}`,
+          name: finalName,
           msisdn: aud.msisdn || "910000000000",
           attributes,
         };
       });
+
+      // console.log("payload:-", audiencePayload);
 
       // CORRECT CALL
       const createRes: any = await api.addAudienceToCampaign(
@@ -664,7 +675,7 @@ const CampaignDetails: React.FC = () => {
 
       await loadAudience(page);
       setShowAddAudience(false);
-      setAudiences([{ msisdn: "", tplParams: {} }]);
+      setAudiences([{ name: "", msisdn: "", tplParams: {} }]);
       toast.success("Audiences added successfully");
     } catch (e: any) {
       const msg =
