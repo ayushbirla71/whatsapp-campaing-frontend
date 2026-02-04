@@ -1,5 +1,6 @@
 export interface Campaign {
   _id: string;
+  id: string;
   name: string;
   description?: string;
   template_id: string;
@@ -13,7 +14,14 @@ export interface Campaign {
     _id: string;
     name: string;
   };
-  status: 'draft' | 'PENDING' | 'APPROVED' | 'RUNNING' | 'PAUSED' | 'CANCELLED' | 'COMPLETED';
+  status:
+    | "draft"
+    | "PENDING"
+    | "APPROVED"
+    | "RUNNING"
+    | "PAUSED"
+    | "CANCELLED"
+    | "COMPLETED";
   scheduled_at?: string;
   started_at?: string;
   completed_at?: string;
@@ -46,7 +54,7 @@ export interface CreateCampaignRequest {
   name: string;
   description?: string;
   template_id: string;
-  campaign_type: 'scheduled';
+  campaign_type: "scheduled";
   scheduled_at: string; // ISO string (e.g., 2025-09-22T00:00:00.000Z)
   buffer_hours: number;
 }
@@ -55,7 +63,14 @@ export interface UpdateCampaignRequest {
   name?: string;
   description?: string;
   scheduled_at?: string;
-  status?: 'DRAFT' | 'PENDING' | 'APPROVED' | 'RUNNING' | 'PAUSED' | 'CANCELLED' | 'COMPLETED';
+  status?:
+    | "DRAFT"
+    | "PENDING"
+    | "APPROVED"
+    | "RUNNING"
+    | "PAUSED"
+    | "CANCELLED"
+    | "COMPLETED";
 }
 
 export interface CampaignListResponse {

@@ -62,7 +62,7 @@ class ApiService {
         }
         return config;
       },
-      (error) => Promise.reject(error)
+      (error) => Promise.reject(error),
     );
 
     // Response interceptor to handle token refresh
@@ -140,7 +140,7 @@ class ApiService {
         }
 
         return Promise.reject(error);
-      }
+      },
     );
   }
 
@@ -148,7 +148,7 @@ class ApiService {
   async login(credentials: LoginRequest): Promise<AuthResponse> {
     const response: AxiosResponse<AuthResponse> = await this.api.post(
       "/api/auth/login",
-      credentials
+      credentials,
     );
     return response.data;
   }
@@ -156,7 +156,7 @@ class ApiService {
   async register(userData: RegisterRequest): Promise<ApiResponse> {
     const response: AxiosResponse<ApiResponse> = await this.api.post(
       "/api/users",
-      userData
+      userData,
     );
     return response.data;
   }
@@ -167,85 +167,84 @@ class ApiService {
       "/api/auth/logout",
       {
         refreshToken,
-      }
+      },
     );
     return response.data;
   }
 
   async validateToken(): Promise<ApiResponse> {
-    const response: AxiosResponse<ApiResponse> = await this.api.post(
-      "/api/auth/validate"
-    );
+    const response: AxiosResponse<ApiResponse> =
+      await this.api.post("/api/auth/validate");
     return response.data;
   }
 
   // Organization endpoints
   async getOrganizations(
     page = 1,
-    limit = 10
+    limit = 10,
   ): Promise<ApiResponse<{ organizations: Organization[]; pagination: any }>> {
     const response: AxiosResponse<ApiResponse> = await this.api.get(
-      `/api/organizations?page=${page}&limit=${limit}`
+      `/api/organizations?page=${page}&limit=${limit}`,
     );
     return response.data;
   }
 
   async getOrganization(id: string): Promise<ApiResponse<Organization>> {
     const response: AxiosResponse<ApiResponse> = await this.api.get(
-      `/api/organizations/${id}`
+      `/api/organizations/${id}`,
     );
     return response.data;
   }
 
   async createOrganization(
-    data: CreateOrganizationRequest
+    data: CreateOrganizationRequest,
   ): Promise<ApiResponse<Organization>> {
     const response: AxiosResponse<ApiResponse> = await this.api.post(
       "/api/organizations",
-      data
+      data,
     );
     return response.data;
   }
 
   async updateOrganization(
     id: string,
-    data: UpdateOrganizationRequest
+    data: UpdateOrganizationRequest,
   ): Promise<ApiResponse<Organization>> {
     const response: AxiosResponse<ApiResponse> = await this.api.put(
       `/api/organizations/${id}`,
-      data
+      data,
     );
     return response.data;
   }
 
   async deleteOrganization(id: string): Promise<ApiResponse> {
     const response: AxiosResponse<ApiResponse> = await this.api.delete(
-      `/api/organizations/${id}`
+      `/api/organizations/${id}`,
     );
     return response.data;
   }
 
   async getOrganizationUsers(id: string): Promise<ApiResponse> {
     const response: AxiosResponse<ApiResponse> = await this.api.get(
-      `/api/organizations/${id}/users`
+      `/api/organizations/${id}/users`,
     );
     return response.data;
   }
 
   async updateWhatsAppConfig(
     id: string,
-    config: WhatsAppConfig
+    config: WhatsAppConfig,
   ): Promise<ApiResponse> {
     const response: AxiosResponse<ApiResponse> = await this.api.put(
       `/organizations/${id}/whatsapp-config`,
-      config
+      config,
     );
     return response.data;
   }
 
   async getWhatsAppConfig(id: string): Promise<ApiResponse<WhatsAppConfig>> {
     const response: AxiosResponse<ApiResponse> = await this.api.get(
-      `/organizations/${id}/whatsapp-config`
+      `/organizations/${id}/whatsapp-config`,
     );
     return response.data;
   }
@@ -254,7 +253,7 @@ class ApiService {
   async getUsers(
     page = 1,
     limit = 10,
-    organizationId?: string
+    organizationId?: string,
   ): Promise<ApiResponse<UserListResponse>> {
     const params = new URLSearchParams({
       page: page.toString(),
@@ -262,14 +261,14 @@ class ApiService {
     });
     if (organizationId) params.append("organization_id", organizationId);
     const response: AxiosResponse<ApiResponse> = await this.api.get(
-      `/api/users?${params}`
+      `/api/users?${params}`,
     );
     return response.data;
   }
 
   async getUser(id: string): Promise<ApiResponse<User>> {
     const response: AxiosResponse<ApiResponse> = await this.api.get(
-      `/api/users/${id}`
+      `/api/users/${id}`,
     );
     return response.data;
   }
@@ -277,25 +276,25 @@ class ApiService {
   async createUser(data: CreateUserRequest): Promise<ApiResponse<User>> {
     const response: AxiosResponse<ApiResponse> = await this.api.post(
       "/api/users",
-      data
+      data,
     );
     return response.data;
   }
 
   async updateUser(
     id: string,
-    data: UpdateUserRequest
+    data: UpdateUserRequest,
   ): Promise<ApiResponse<User>> {
     const response: AxiosResponse<ApiResponse> = await this.api.put(
       `/api/users/${id}`,
-      data
+      data,
     );
     return response.data;
   }
 
   async deleteUser(id: string): Promise<ApiResponse> {
     const response: AxiosResponse<ApiResponse> = await this.api.delete(
-      `/api/users/${id}`
+      `/api/users/${id}`,
     );
     return response.data;
   }
@@ -305,14 +304,14 @@ class ApiService {
   async getOrganizationTemplates(
     organizationId: string,
     page = 1,
-    limit = 10
+    limit = 10,
   ): Promise<ApiResponse<TemplateListResponse>> {
     const params = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString(),
     });
     const response: AxiosResponse<ApiResponse> = await this.api.get(
-      `/api/templates/organization/${organizationId}?${params}`
+      `/api/templates/organization/${organizationId}?${params}`,
     );
     return response.data;
   }
@@ -320,11 +319,11 @@ class ApiService {
   // 2) Backend-specific: create template for an organization
   async createTemplateForOrganization(
     organizationId: string,
-    data: CreateTemplateRequest
+    data: CreateTemplateRequest,
   ): Promise<ApiResponse<Template>> {
     const response: AxiosResponse<ApiResponse> = await this.api.post(
       `/api/templates/organization/${organizationId}`,
-      data
+      data,
     );
     return response.data;
   }
@@ -332,24 +331,24 @@ class ApiService {
   // 3) Backend-specific: get pending approval templates (admin review queue)
   async getPendingApprovalTemplates(
     page = 1,
-    limit = 10
+    limit = 10,
   ): Promise<ApiResponse<TemplateListResponse>> {
     const params = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString(),
     });
     const response: AxiosResponse<ApiResponse> = await this.api.get(
-      `/api/templates/pending-approval?${params}`
+      `/api/templates/pending-approval?${params}`,
     );
     return response.data;
   }
 
   // 4) Backend-specific: sync from WhatsApp API for an organization
   async syncTemplatesFromWhatsApp(
-    organizationId: string
+    organizationId: string,
   ): Promise<ApiResponse> {
     const response: AxiosResponse<ApiResponse> = await this.api.post(
-      `/api/templates/organization/${organizationId}/sync-whatsapp`
+      `/api/templates/organization/${organizationId}/sync-whatsapp`,
     );
     return response.data;
   }
@@ -359,7 +358,7 @@ class ApiService {
     page = 1,
     limit = 10,
     organizationId?: string,
-    status?: string
+    status?: string,
   ): Promise<ApiResponse<TemplateListResponse>> {
     const params = new URLSearchParams({
       page: page.toString(),
@@ -368,20 +367,20 @@ class ApiService {
     if (organizationId) params.append("organization_id", organizationId);
     if (status) params.append("status", status);
     const response: AxiosResponse<ApiResponse> = await this.api.get(
-      `/api/templates?${params}`
+      `/api/templates?${params}`,
     );
     return response.data;
   }
 
   async getTemplate(id: string): Promise<ApiResponse<Template>> {
     const response: AxiosResponse<ApiResponse> = await this.api.get(
-      `/api/templates/${id}`
+      `/api/templates/${id}`,
     );
     return response.data;
   }
 
   async createTemplate(
-    data: CreateTemplateRequest
+    data: CreateTemplateRequest,
   ): Promise<ApiResponse<Template>> {
     // If organization_id provided, prefer backend's org-specific route
     if (data.organization_id) {
@@ -389,25 +388,25 @@ class ApiService {
     }
     const response: AxiosResponse<ApiResponse> = await this.api.post(
       "/api/templates",
-      data
+      data,
     );
     return response.data;
   }
 
   async updateTemplate(
     id: string,
-    data: UpdateTemplateRequest
+    data: UpdateTemplateRequest,
   ): Promise<ApiResponse<Template>> {
     const response: AxiosResponse<ApiResponse> = await this.api.put(
       `/api/templates/${id}`,
-      data
+      data,
     );
     return response.data;
   }
 
   async deleteTemplate(id: string): Promise<ApiResponse> {
     const response: AxiosResponse<ApiResponse> = await this.api.delete(
-      `/api/templates/${id}`
+      `/api/templates/${id}`,
     );
     return response.data;
   }
@@ -415,14 +414,14 @@ class ApiService {
   async submitTemplate(id: string): Promise<ApiResponse> {
     // Backend route: /api/templates/:id/submit-approval
     const response: AxiosResponse<ApiResponse> = await this.api.post(
-      `/api/templates/${id}/submit-approval`
+      `/api/templates/${id}/submit-approval`,
     );
     return response.data;
   }
 
   async approveTemplate(id: string): Promise<ApiResponse> {
     const response: AxiosResponse<ApiResponse> = await this.api.post(
-      `/api/templates/${id}/approve`
+      `/api/templates/${id}/approve`,
     );
     return response.data;
   }
@@ -430,7 +429,7 @@ class ApiService {
   async rejectTemplate(id: string, reason: string): Promise<ApiResponse> {
     const response: AxiosResponse<ApiResponse> = await this.api.post(
       `/api/templates/${id}/reject`,
-      { reason }
+      { reason },
     );
     return response.data;
   }
@@ -440,7 +439,7 @@ class ApiService {
     page = 1,
     limit = 10,
     organizationId?: string,
-    status?: string
+    status?: string,
   ): Promise<ApiResponse<CampaignListResponse>> {
     const params = new URLSearchParams({
       page: page.toString(),
@@ -452,32 +451,32 @@ class ApiService {
       throw new Error("organizationId is required to fetch campaigns");
     }
     const response: AxiosResponse<ApiResponse> = await this.api.get(
-      `/api/campaigns/organization/${organizationId}?${params}`
+      `/api/campaigns/organization/${organizationId}?${params}`,
     );
     return response.data;
   }
 
   async getCampaign(id: string): Promise<ApiResponse<Campaign>> {
     const response: AxiosResponse<ApiResponse> = await this.api.get(
-      `/api/campaigns/${id}`
+      `/api/campaigns/${id}`,
     );
     return response.data;
   }
 
   async createCampaignForOrganization(
     organizationId: string,
-    data: CreateCampaignRequest
+    data: CreateCampaignRequest,
   ): Promise<ApiResponse<Campaign>> {
     const response: AxiosResponse<ApiResponse> = await this.api.post(
       `/api/campaigns/organization/${organizationId}`,
-      data
+      data,
     );
     return response.data;
   }
 
   async createCampaign(
     organizationId: string,
-    data: CreateCampaignRequest
+    data: CreateCampaignRequest,
   ): Promise<ApiResponse<Campaign>> {
     if (!organizationId) {
       throw new Error("organizationId is required to create a campaign");
@@ -487,18 +486,18 @@ class ApiService {
 
   async updateCampaign(
     id: string,
-    data: UpdateCampaignRequest
+    data: UpdateCampaignRequest,
   ): Promise<ApiResponse<Campaign>> {
     const response: AxiosResponse<ApiResponse> = await this.api.put(
       `/api/campaigns/${id}`,
-      data
+      data,
     );
     return response.data;
   }
 
   async deleteCampaign(id: string): Promise<ApiResponse> {
     const response: AxiosResponse<ApiResponse> = await this.api.delete(
-      `/api/campaigns/${id}`
+      `/api/campaigns/${id}`,
     );
     return response.data;
   }
@@ -508,14 +507,14 @@ class ApiService {
     const response: AxiosResponse<ApiResponse> = await this.api.post(
       `/api/campaigns/${id}/submit-approval`,
       undefined,
-      { suppressToast: true } as any
+      { suppressToast: true } as any,
     );
     return response.data;
   }
 
   async approveCampaign(id: string): Promise<ApiResponse> {
     const response: AxiosResponse<ApiResponse> = await this.api.post(
-      `/api/campaigns/${id}/approve`
+      `/api/campaigns/${id}/approve`,
     );
     return response.data;
   }
@@ -523,7 +522,7 @@ class ApiService {
   async rejectCampaign(id: string, reason: string): Promise<ApiResponse> {
     const response: AxiosResponse<ApiResponse> = await this.api.post(
       `/api/campaigns/${id}/reject`,
-      { reason }
+      { reason },
     );
     return response.data;
   }
@@ -531,51 +530,51 @@ class ApiService {
   // Pending Campaign Approvals
   async getPendingCampaignApprovals(
     page = 1,
-    limit = 10
+    limit = 10,
   ): Promise<ApiResponse<CampaignListResponse>> {
     const params = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString(),
     });
     const response: AxiosResponse<ApiResponse> = await this.api.get(
-      `/api/campaigns/pending-approval?${params}`
+      `/api/campaigns/pending-approval?${params}`,
     );
     return response.data;
   }
 
   async startCampaign(id: string): Promise<ApiResponse> {
     const response: AxiosResponse<ApiResponse> = await this.api.post(
-      `/api/campaigns/${id}/start`
+      `/api/campaigns/${id}/start`,
     );
     return response.data;
   }
 
   async pauseCampaign(id: string): Promise<ApiResponse> {
     const response: AxiosResponse<ApiResponse> = await this.api.post(
-      `/api/campaigns/${id}/pause`
+      `/api/campaigns/${id}/pause`,
     );
     return response.data;
   }
 
   async cancelCampaign(id: string): Promise<ApiResponse> {
     const response: AxiosResponse<ApiResponse> = await this.api.post(
-      `/api/campaigns/${id}/cancel`
+      `/api/campaigns/${id}/cancel`,
     );
     return response.data;
   }
 
   async getCampaignStatistics(
-    organizationId?: string
+    organizationId?: string,
   ): Promise<ApiResponse<CampaignStatistics>> {
     // Avoid calling a conflicting global path like /api/campaigns/statistics which some backends treat as /api/campaigns/:id
     if (!organizationId) {
       throw new Error(
-        "organizationId is required to fetch campaign statistics"
+        "organizationId is required to fetch campaign statistics",
       );
     }
     const params = `?organization_id=${organizationId}`;
     const response: AxiosResponse<ApiResponse> = await this.api.get(
-      `/api/campaigns/statistics${params}`
+      `/api/campaigns/statistics${params}`,
     );
     return response.data;
   }
@@ -584,7 +583,7 @@ class ApiService {
   async getOrganizationAudience(
     organizationId: string,
     page = 1,
-    limit = 10
+    limit = 10,
   ): Promise<ApiResponse<AudienceListResponse>> {
     const params = new URLSearchParams({
       page: page.toString(),
@@ -592,7 +591,7 @@ class ApiService {
       organization_id: organizationId,
     });
     const response: AxiosResponse<ApiResponse> = await this.api.get(
-      `/api/audience?${params}`
+      `/api/audience?${params}`,
     );
     return response.data;
   }
@@ -600,24 +599,25 @@ class ApiService {
   // Master audience routes (create/update single master record, and bulk upsert) with minimal bodies
   async createMasterAudienceRecord(
     organizationId: string,
-    body: any = {}
+    body: any = {},
+    id?: string,
   ): Promise<ApiResponse> {
     const bodyWithOrg = { ...body, organization_id: organizationId };
     const response: AxiosResponse<ApiResponse> = await this.api.post(
-      `/api/audience`,
-      bodyWithOrg
+      `/api/campaigns/${id}/audience`,
+      bodyWithOrg,
     );
     return response.data;
   }
 
   async bulkCreateMasterAudience(
     organizationId: string,
-    body: any = {}
+    body: any = {},
   ): Promise<ApiResponse> {
     const bodyWithOrg = { ...body, organization_id: organizationId };
     const response: AxiosResponse<ApiResponse> = await this.api.post(
       `/api/audience/bulk`,
-      bodyWithOrg
+      bodyWithOrg,
     );
     return response.data;
   }
@@ -625,38 +625,38 @@ class ApiService {
   //Admin Approval endpoints
   async getPendingAdminApprovalTemplates(
     page = 1,
-    limit = 10
+    limit = 10,
   ): Promise<ApiResponse<TemplateListResponse>> {
     const params = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString(),
     });
     const response: AxiosResponse<ApiResponse> = await this.api.get(
-      `/api/templates/pending-admin-approval?${params}`
+      `/api/templates/pending-admin-approval?${params}`,
     );
     return response.data;
   }
 
   async approveAdminTemplates(
     templateId: string,
-    body?: any
+    body?: any,
   ): Promise<ApiResponse> {
     const response: AxiosResponse<ApiResponse> = await this.api.post(
       `/api/templates/${templateId}/admin-approve`,
-      body ?? {}
+      body ?? {},
     );
     return response.data;
   }
 
   async rejectAdminTemplates(
     templateId: string,
-    body?: any
+    body?: any,
   ): Promise<ApiResponse> {
     const payload =
-      typeof body === "string" ? { rejection_reason: body } : body ?? {};
+      typeof body === "string" ? { rejection_reason: body } : (body ?? {});
     const response: AxiosResponse<ApiResponse> = await this.api.post(
       `/api/templates/${templateId}/admin-reject`,
-      payload
+      payload,
     );
     return response.data;
   }
@@ -666,7 +666,7 @@ class ApiService {
     campaignId: string,
     page = 1,
     limit = 10,
-    includeReplies = false
+    includeReplies = false,
   ): Promise<ApiResponse<CampaignAudienceListResponse>> {
     const params = new URLSearchParams({
       page: page.toString(),
@@ -676,30 +676,47 @@ class ApiService {
       params.append("include_replies", "true");
     }
     const response: AxiosResponse<ApiResponse> = await this.api.get(
-      `/api/campaigns/${campaignId}/audience?${params}`
+      `/api/campaigns/${campaignId}/audience?${params}`,
     );
     return response.data;
   }
 
+  // async addAudienceToCampaign(
+  //   campaignId: string,
+  //   audienceList: Array<{ name: string; msisdn: string; attributes?: any }>,
+  // ): Promise<ApiResponse> {
+  //   // Backend expects 'audience_list' with objects having 'name' and 'msisdn'
+  //   const payload = { audience_list: audienceList };
+  //   const response: AxiosResponse<ApiResponse> = await this.api.post(
+  //     `/api/campaigns/${campaignId}/audience`,
+  //     payload,
+  //   );
+  //   return response.data;
+  // }
+
   async addAudienceToCampaign(
     campaignId: string,
-    audienceList: Array<{ name: string; msisdn: string; attributes?: any }>
+    audienceList: Array<{ name: string; msisdn: string; attributes?: any }>,
   ): Promise<ApiResponse> {
-    // Backend expects 'audience_list' with objects having 'name' and 'msisdn'
+    // Backend expects 'audience_list'
     const payload = { audience_list: audienceList };
+
     const response: AxiosResponse<ApiResponse> = await this.api.post(
       `/api/campaigns/${campaignId}/audience`,
-      payload
+      payload,
     );
+
+    // console.log("resposne data:-", response.data);
+
     return response.data;
   }
 
   async removeAudienceFromCampaign(
     campaignId: string,
-    audienceId: string
+    audienceId: string,
   ): Promise<ApiResponse> {
     const response: AxiosResponse<ApiResponse> = await this.api.delete(
-      `/api/campaigns/${campaignId}/audience/${audienceId}`
+      `/api/campaigns/${campaignId}/audience/${audienceId}`,
     );
     return response.data;
   }
@@ -708,14 +725,14 @@ class ApiService {
   async generateAssets(templateId: string, body?: any): Promise<ApiResponse> {
     const response: AxiosResponse<ApiResponse> = await this.api.post(
       `/api/asset-files/template/${templateId}`,
-      body ?? {}
+      body ?? {},
     );
     return response.data;
   }
 
   async getAssetFiles(templateId: string): Promise<ApiResponse> {
     const response: AxiosResponse<ApiResponse> = await this.api.get(
-      `/api/asset-files/template/${templateId}?include_inactive=false`
+      `/api/asset-files/template/${templateId}?include_inactive=false`,
     );
     return response.data;
   }
@@ -723,14 +740,14 @@ class ApiService {
   async getOrgAssetFiles(
     organizationId: string,
     page = 1,
-    limit = 10
+    limit = 10,
   ): Promise<ApiResponse> {
     const params = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString(),
     });
     const response: AxiosResponse<ApiResponse> = await this.api.get(
-      `/api/asset-files/organization/${organizationId}?${params}`
+      `/api/asset-files/organization/${organizationId}?${params}`,
     );
     return response.data;
   }
@@ -739,44 +756,44 @@ class ApiService {
   async updateAssetFile(assetFileId: string, data: any): Promise<ApiResponse> {
     const response: AxiosResponse<ApiResponse> = await this.api.put(
       `/api/asset-files/${assetFileId}`,
-      data
+      data,
     );
     return response.data;
   }
 
   async createAssetFileVersion(
     templateId: string,
-    data: { file_name: string; content?: any; metadata?: any }
+    data: { file_name: string; content?: any; metadata?: any },
   ): Promise<ApiResponse> {
     const response: AxiosResponse<ApiResponse> = await this.api.post(
       `/api/asset-files/template/${templateId}/version`,
-      data
+      data,
     );
     return response.data;
   }
 
   async getAssetFileVersions(
     templateId: string,
-    fileName: string
+    fileName: string,
   ): Promise<ApiResponse> {
     const response: AxiosResponse<ApiResponse> = await this.api.get(
       `/api/asset-files/template/${templateId}/versions/${encodeURIComponent(
-        fileName
-      )}`
+        fileName,
+      )}`,
     );
     return response.data;
   }
 
   async deactivateAssetFile(assetFileId: string): Promise<ApiResponse> {
     const response: AxiosResponse<ApiResponse> = await this.api.delete(
-      `/api/asset-files/${assetFileId}`
+      `/api/asset-files/${assetFileId}`,
     );
     return response.data;
   }
 
   async deleteAssetFile(assetFileId: string): Promise<ApiResponse> {
     const response: AxiosResponse<ApiResponse> = await this.api.delete(
-      `/api/asset-files/${assetFileId}`
+      `/api/asset-files/${assetFileId}`,
     );
     return response.data;
   }
@@ -794,7 +811,7 @@ class ApiService {
 
   async getDashboardActivities(limit: number = 10): Promise<ApiResponse<any>> {
     const response = await this.api.get(
-      `/api/dashboard/activities?limit=${limit}`
+      `/api/dashboard/activities?limit=${limit}`,
     );
     return response.data;
   }
@@ -805,7 +822,7 @@ class ApiService {
     limit = 10,
     search?: string,
     countryCode?: string,
-    organizationId?: string
+    organizationId?: string,
   ): Promise<ApiResponse<AudienceListResponse>> {
     const params = new URLSearchParams({
       page: page.toString(),
@@ -815,7 +832,7 @@ class ApiService {
     if (countryCode) params.append("country_code", countryCode);
     if (organizationId) params.append("organization_id", organizationId);
     const response: AxiosResponse<ApiResponse> = await this.api.get(
-      `/api/audience?${params}`
+      `/api/audience?${params}`,
     );
     return response.data;
   }
@@ -832,20 +849,19 @@ class ApiService {
     return response.data;
   }
 
-async sendMessage(
-  id: string,
-  body: Record<string, any>
-): Promise<ApiResponse<any>> {
-  console.log("Sending message:", body);
+  async sendMessage(
+    id: string,
+    body: Record<string, any>,
+  ): Promise<ApiResponse<any>> {
+    console.log("Sending message:", body);
 
-  const response = await this.api.post(
-    `/api/messages/${id}/send`,
-    body // ✅ correct
-  );
+    const response = await this.api.post(
+      `/api/messages/${id}/send`,
+      body, // ✅ correct
+    );
 
-  return response.data;
-}
-
+    return response.data;
+  }
 
   async getIsActiveConversation(id: string): Promise<ApiResponse<any>> {
     const response = await this.api.get(`/api/messages/${id}/is-active`);
@@ -856,11 +872,15 @@ async sendMessage(
     const formData = new FormData();
     formData.append("file", file);
     console.log("Uploading media:", file);
-    const response = await this.api.post("/api/messages/upload-media", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
+    const response = await this.api.post(
+      "/api/messages/upload-media",
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
       },
-    });
+    );
     console.log("Media uploaded:", response.data);
     return response.data;
   }
