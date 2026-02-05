@@ -865,6 +865,9 @@ const CampaignDetails: React.FC = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                   Timestamp
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Retry At
+                </th>
                 {includeReplies && (
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Replies
@@ -934,9 +937,9 @@ const CampaignDetails: React.FC = () => {
                     (ca as any)?.audience_id ||
                     idx;
                   const isExpanded = expandedReplies.has(key);
-                  const failureResponse = (ca as any)?.failure_response;
+                  const nextRetry = (ca as any)?.next_retry_at;
 
-                  // console.log("ca:-", ca);
+                  console.log("ca:-", ca);
                   let failureReason: any = null;
 
                   if ((ca as any)?.failure_reason) {
@@ -1023,6 +1026,10 @@ const CampaignDetails: React.FC = () => {
                         <td className="px-6 py-4 text-sm text-gray-600">
                           {formatTimestamp(timestamp)}
                         </td>
+                        <td className="px-6 py-4 text-sm text-gray-600">
+                          {formatTimestamp(nextRetry)}
+                        </td>
+
                         {includeReplies && (
                           <td className="px-6 py-4 text-sm">
                             {replies.length > 0 ? (
