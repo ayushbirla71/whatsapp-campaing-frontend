@@ -21,6 +21,7 @@ import {
   X,
   Check,
   Trash2,
+  Info,
 } from "lucide-react";
 import { toast } from "react-toastify";
 
@@ -58,11 +59,14 @@ const Campaigns: React.FC = () => {
 
   const [audienceOpen, setAudienceOpen] = useState(false);
   const [campaignAudience, setCampaignAudience] = useState<CampaignAudience[]>(
-    []
+    [],
   );
   const [audiencePage, setAudiencePage] = useState(1);
   const [audienceTotalPages, setAudienceTotalPages] = useState(1);
   const [audienceIdsInput, setAudienceIdsInput] = useState("");
+
+  const [customRetry, setCustomRetry] = useState(false);
+  const [retryCount, setRetryCount] = useState<number>(1);
 
   // New Campaign form state (request body only)
   const [form, setForm] = useState<CreateCampaignRequest>({
@@ -165,7 +169,7 @@ const Campaigns: React.FC = () => {
         currentPage,
         10,
         effectiveOrgId || undefined,
-        status || undefined
+        status || undefined,
       );
       if (res.success && res.data) {
         setCampaigns(res.data.campaigns);
@@ -207,7 +211,7 @@ const Campaigns: React.FC = () => {
         paused: 0,
         cancelled: 0,
         completed: 0,
-      }
+      },
     );
     setStats(counts);
   };
@@ -217,7 +221,7 @@ const Campaigns: React.FC = () => {
       (c) =>
         search.trim() === "" ||
         c.name.toLowerCase().includes(search.toLowerCase()) ||
-        (c.description || "").toLowerCase().includes(search.toLowerCase())
+        (c.description || "").toLowerCase().includes(search.toLowerCase()),
     );
   }, [campaigns, search]);
 
@@ -247,30 +251,44 @@ const Campaigns: React.FC = () => {
     setShowEdit(true);
   };
 
+  const [scheduleType, setScheduleType] = useState<"immediate" | "scheduled">(
+    "scheduled",
+  );
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const orgId = canAdminAllOrgs
         ? createOrgId || ""
         : user?.organization_id || "";
-      const isoScheduled = form.scheduled_at
-        ? new Date(form.scheduled_at).toISOString()
-        : "";
+      // const isoScheduled = form.scheduled_at
+      //   ? new Date(form.scheduled_at).toISOString()
+      //   : "";
+      const scheduledDate =
+        scheduleType === "immediate"
+          ? new Date().toISOString()
+          : form.scheduled_at
+            ? new Date(form.scheduled_at).toISOString()
+            : "";
       const payload: CreateCampaignRequest = {
         name: form.name,
         description: form.description,
         template_id: form.template_id,
         campaign_type: "scheduled",
-        scheduled_at: isoScheduled,
+        // campaign_type: scheduleType,
+        // scheduled_at: isoScheduled,
+        scheduled_at: scheduledDate,
         buffer_hours: form.buffer_hours ?? 48,
+        // retry_count: customRetry ? retryCount : undefined,
       };
       await api.createCampaign(orgId, payload);
       setShowCreate(false);
+      toast.success("Campaign created successfully");
       loadCampaigns();
       loadStats();
     } catch (e: any) {
       setError(
-        e?.response?.data?.message || e?.message || "Failed to create campaign"
+        e?.response?.data?.message || e?.message || "Failed to create campaign",
       );
     }
   };
@@ -326,7 +344,7 @@ const Campaigns: React.FC = () => {
       }
     } catch (e: any) {
       setError(
-        e?.response?.data?.message || "Failed to approve or generate assets"
+        e?.response?.data?.message || "Failed to approve or generate assets",
       );
     } finally {
       // Refresh campaigns which should reflect READY_TO_LAUNCH after assets are generated (per backend lifecycle)
@@ -597,22 +615,22 @@ const Campaigns: React.FC = () => {
                             s === "RUNNING"
                               ? "bg-green-100 text-green-800"
                               : s === "PENDING"
-                              ? "bg-yellow-100 text-yellow-800"
-                              : s === "APPROVED"
-                              ? "bg-blue-100 text-blue-800"
-                              : s === "ASSET_GENERATION"
-                              ? "bg-indigo-100 text-indigo-800"
-                              : s === "ASSET_GENERATED"
-                              ? "bg-teal-100 text-teal-800"
-                              : s === "READY_TO_LAUNCH"
-                              ? "bg-emerald-100 text-emerald-800"
-                              : s === "PAUSED"
-                              ? "bg-orange-100 text-orange-800"
-                              : s === "CANCELLED"
-                              ? "bg-red-100 text-red-800"
-                              : s === "COMPLETED"
-                              ? "bg-gray-200 text-gray-800"
-                              : "bg-gray-100 text-gray-800"
+                                ? "bg-yellow-100 text-yellow-800"
+                                : s === "APPROVED"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : s === "ASSET_GENERATION"
+                                    ? "bg-indigo-100 text-indigo-800"
+                                    : s === "ASSET_GENERATED"
+                                      ? "bg-teal-100 text-teal-800"
+                                      : s === "READY_TO_LAUNCH"
+                                        ? "bg-emerald-100 text-emerald-800"
+                                        : s === "PAUSED"
+                                          ? "bg-orange-100 text-orange-800"
+                                          : s === "CANCELLED"
+                                            ? "bg-red-100 text-red-800"
+                                            : s === "COMPLETED"
+                                              ? "bg-gray-200 text-gray-800"
+                                              : "bg-gray-100 text-gray-800"
                           }`}
                         >
                           {s.toLowerCase().replace("_", " ")}
@@ -810,6 +828,60 @@ const Campaigns: React.FC = () => {
                   )}
                 </div>
               </div>
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="customRetry"
+                    checked={customRetry}
+                    onChange={(e) => setCustomRetry(e.target.checked)}
+                    className="h-4 w-4"
+                  />
+
+                  <label
+                    htmlFor="customRetry"
+                    className="text-sm font-medium text-gray-700"
+                  >
+                    Customize Retry Count
+                  </label>
+
+                  {/* Info Tooltip */}
+                  <div className="relative group">
+                    <button
+                      type="button"
+                      className="w-4 h-4 flex items-center justify-center rounded-full  text-xs font-bold "
+                    >
+                      <Info />
+                    </button>
+
+                    <div className="absolute left-1/2 -translate-x-1/2 mt-2 w-64 text-xs text-white bg-black rounded px-3 py-2 opacity-0 group-hover:opacity-100 transition pointer-events-none z-10">
+                      Retry count defines how many times the system will retry
+                      sending the campaign message if delivery fails.
+                    </div>
+                  </div>
+                </div>
+
+                {/* Retry Count Dropdown */}
+                {customRetry && (
+                  <div className="max-w-xs">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Retry Count
+                    </label>
+                    <select
+                      value={retryCount}
+                      onChange={(e) => setRetryCount(Number(e.target.value))}
+                      className="mt-1 w-full border rounded px-3 py-2"
+                    >
+                      {[1, 2, 3, 4, 5].map((count) => (
+                        <option key={count} value={count}>
+                          {count}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700">
                   Description
@@ -824,7 +896,55 @@ const Campaigns: React.FC = () => {
                 />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Schedule Type Dropdown */}
                 <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Schedule Type
+                  </label>
+                  <select
+                    value={scheduleType}
+                    onChange={(e) => {
+                      const value = e.target.value as "immediate" | "scheduled";
+                      setScheduleType(value);
+
+                      // If Immediate → auto set current date
+                      if (value === "immediate") {
+                        setForm({
+                          ...form,
+                          scheduled_at: new Date().toISOString().slice(0, 16),
+                        });
+                      } else {
+                        setForm({ ...form, scheduled_at: "" });
+                      }
+                    }}
+                    className="mt-1 w-full border rounded px-3 py-2"
+                  >
+                    <option value="immediate">Immediate</option>
+                    <option value="scheduled">Schedule</option>
+                  </select>
+                </div>
+
+                {/* Scheduled DateTime (only when scheduled) */}
+                {scheduleType === "scheduled" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Schedule Date & Time
+                    </label>
+                    <input
+                      type="datetime-local"
+                      required
+                      value={form.scheduled_at || ""}
+                      onChange={(e) =>
+                        setForm({ ...form, scheduled_at: e.target.value })
+                      }
+                      className="mt-1 w-full border rounded px-3 py-2"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* <div>
                   <label className="block text-sm font-medium text-gray-700">
                     Schedule
                   </label>
@@ -837,7 +957,8 @@ const Campaigns: React.FC = () => {
                     }
                     className="mt-1 w-full border rounded px-3 py-2"
                   />
-                </div>
+                </div> */}
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
                     Buffer Hours
@@ -1031,10 +1152,10 @@ const Campaigns: React.FC = () => {
                                 ca.status === "DELIVERED"
                                   ? "bg-green-100 text-green-800"
                                   : ca.status === "READ"
-                                  ? "bg-blue-100 text-blue-800"
-                                  : ca.status === "FAILED"
-                                  ? "bg-red-100 text-red-800"
-                                  : "bg-gray-100 text-gray-800"
+                                    ? "bg-blue-100 text-blue-800"
+                                    : ca.status === "FAILED"
+                                      ? "bg-red-100 text-red-800"
+                                      : "bg-gray-100 text-gray-800"
                               }`}
                             >
                               {ca.status.toLowerCase()}
@@ -1076,7 +1197,7 @@ const Campaigns: React.FC = () => {
                       onClick={async () => {
                         const p = Math.min(
                           audienceTotalPages,
-                          audiencePage + 1
+                          audiencePage + 1,
                         );
                         setAudiencePage(p);
                         await loadCampaignAudience(selected._id, p);
