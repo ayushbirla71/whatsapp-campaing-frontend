@@ -274,12 +274,12 @@ const Campaigns: React.FC = () => {
         name: form.name,
         description: form.description,
         template_id: form.template_id,
-        campaign_type: "scheduled",
-        // campaign_type: scheduleType,
+        // campaign_type: "scheduled",
+        campaign_type: scheduleType,
         // scheduled_at: isoScheduled,
         scheduled_at: scheduledDate,
         buffer_hours: form.buffer_hours ?? 48,
-        // retry_count: customRetry ? retryCount : undefined,
+        retry_count: customRetry ? retryCount : undefined,
       };
       await api.createCampaign(orgId, payload);
       setShowCreate(false);
