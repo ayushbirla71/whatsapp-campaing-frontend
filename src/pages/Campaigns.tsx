@@ -266,7 +266,7 @@ const Campaigns: React.FC = () => {
       //   : "";
       const scheduledDate =
         scheduleType === "immediate"
-          ? new Date().toISOString()
+          ? ""
           : form.scheduled_at
             ? new Date(form.scheduled_at).toISOString()
             : "";
@@ -277,10 +277,14 @@ const Campaigns: React.FC = () => {
         // campaign_type: "scheduled",
         campaign_type: scheduleType,
         // scheduled_at: isoScheduled,
-        scheduled_at: scheduledDate,
+        // scheduled_at: scheduledDate,
         buffer_hours: form.buffer_hours ?? 48,
         retry_count: customRetry ? retryCount : undefined,
       };
+
+      if(scheduleType !== "immediate"){
+        payload.scheduled_at = scheduledDate
+      }
       await api.createCampaign(orgId, payload);
       setShowCreate(false);
       toast.success("Campaign created successfully");
@@ -872,7 +876,7 @@ const Campaigns: React.FC = () => {
                       onChange={(e) => setRetryCount(Number(e.target.value))}
                       className="mt-1 w-full border rounded px-3 py-2"
                     >
-                      {[1, 2, 3, 4, 5].map((count) => (
+                      {[1, 2, 3].map((count) => (
                         <option key={count} value={count}>
                           {count}
                         </option>
@@ -959,6 +963,7 @@ const Campaigns: React.FC = () => {
                   />
                 </div> */}
 
+                {scheduleType !== "immediate" && 
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
                     Buffer Hours
@@ -973,6 +978,8 @@ const Campaigns: React.FC = () => {
                     className="mt-1 w-full border rounded px-3 py-2"
                   />
                 </div>
+                }
+
               </div>
               <div className="flex justify-end space-x-3 pt-2">
                 <button
