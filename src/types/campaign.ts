@@ -57,7 +57,7 @@ export interface CreateCampaignRequest {
   // campaign_type: "scheduled";
   // allow both options now
   campaign_type: "immediate" | "scheduled";
-  scheduled_at: string; // ISO string (e.g., 2025-09-22T00:00:00.000Z)
+  scheduled_at?: string; // optional // ISO string (e.g., 2025-09-22T00:00:00.000Z)
   buffer_hours: number;
   retry_count?: number;
 }
