@@ -287,27 +287,48 @@ const CampaignDetails: React.FC = () => {
   };
 
   // Create and download demo Excel
-  const downloadDemoExcel = () => {
-    try {
-      const headers = ["name", "msisdn", ...templateAttributeKeys];
-      const sample1: any = { name: "Alice Johnson", msisdn: "+1234567890" };
-      const sample2: any = { name: "Bob Wilson", msisdn: "+1234567892" };
-      templateAttributeKeys.forEach((k, idx) => {
-        sample1[k] = `example_${idx + 1}_A`;
-        sample2[k] = `example_${idx + 1}_B`;
+const downloadDemoExcel = () => {
+  try {
+    const headers = ["name", "msisdn", ...templateAttributeKeys];
+    const sample1: any = { name: "Alice Johnson", msisdn: "+1234567890" };
+    const sample2: any = { name: "Bob Wilson", msisdn: "+1234567892" };
+
+    templateAttributeKeys.forEach((k, idx) => {
+      sample1[k] = `example_${idx + 1}_A`;
+      sample2[k] = `example_${idx + 1}_B`;
+    });
+
+    const wsData = [
+      headers,
+      ...[sample1, sample2].map((obj) =>
+        headers.map((h) => obj[h] ?? "")
+      ),
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+    // 👉 Force msisdn column to TEXT type
+    const msisdnColIndex = headers.indexOf("msisdn");
+
+    for (let row = 1; row < wsData.length; row++) {
+      const cellAddress = XLSX.utils.encode_cell({
+        r: row,
+        c: msisdnColIndex,
       });
-      const wsData = [
-        headers,
-        ...[sample1, sample2].map((obj) => headers.map((h) => obj[h] ?? "")),
-      ];
-      const ws = XLSX.utils.aoa_to_sheet(wsData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "BulkAudience");
-      XLSX.writeFile(wb, "bulk_audience_demo.xlsx");
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to generate demo file");
+
+      if (ws[cellAddress]) {
+        ws[cellAddress].t = "s"; // set type to string
+      }
     }
-  };
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "BulkAudience");
+    XLSX.writeFile(wb, "bulk_audience_demo.xlsx");
+  } catch (e: any) {
+    toast.error(e?.message || "Failed to generate demo file");
+  }
+};
+
 
   // Handle file upload and parse
   const handleBulkFileUpload = async (file: File) => {
@@ -335,7 +356,29 @@ const CampaignDetails: React.FC = () => {
           return found ? found[1] : "";
         };
         const name = getVal("name");
-        const msisdn = getVal("msisdn");
+        let msisdn = getVal("msisdn");
+
+         if (msisdn) {
+        // Remove spaces and non-digit characters except +
+        msisdn = msisdn.replace(/\s+/g, "");
+
+        // Remove everything except digits
+        let digits = msisdn.replace(/\D/g, "");
+
+        if (digits.length === 10) {
+          // If only 10 digits → assume Indian number
+          msisdn = `+91${digits}`;
+        } else if (digits.length === 12 && digits.startsWith("91")) {
+          // If already 91XXXXXXXXXX
+          msisdn = `+${digits}`;
+        } else if (digits.length > 12 && digits.startsWith("91")) {
+          // If longer but starts with 91
+          msisdn = `+${digits}`;
+        } else {
+          // Default fallback
+          msisdn = `+91${digits}`;
+        }
+      }
         const attributes: Record<string, string> = {};
         // For attributes, use exact header names (excluding name/msisdn) as keys
         normEntries.forEach(([k, v]) => {
