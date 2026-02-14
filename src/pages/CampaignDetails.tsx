@@ -638,11 +638,21 @@ const CampaignDetails: React.FC = () => {
           if (val) attributes[label] = val;
         });
 
-        const userProvidedName =
-          typeof attributes["John"] === "string"
-            ? String(attributes["John"]).trim()
-            : "";
-        const finalName = userProvidedName;
+        // const userProvidedName =
+        //   typeof attributes["John"] === "string"
+        //     ? String(attributes["John"]).trim()
+        //     : "";
+        // const finalName = userProvidedName;
+
+          let finalName = "";
+
+          if (hasNamePlaceholder) {
+            // If template includes name field
+            finalName = attributes["John"]?.trim() || "";
+          } else {
+            // If no name placeholder, take manual input
+            finalName = aud.name?.trim() || "";
+          }
 
         return {
           name: finalName,
@@ -707,6 +717,15 @@ const CampaignDetails: React.FC = () => {
     if (!timestamp) return "-";
     return new Date(timestamp).toLocaleString();
   };
+
+  const hasNamePlaceholder = useMemo(() => {
+    if (!tplPlaceholders.length) return false;
+
+    return tplPlaceholders.some((ph) => {
+      const label = tplLabels[ph]?.toLowerCase();
+      return label === "name" || label === "john";
+    });
+  }, [tplPlaceholders, tplLabels]);
 
   // console.log("capegn data:-", campaign);
 
@@ -1204,6 +1223,28 @@ const CampaignDetails: React.FC = () => {
                       </button>
                     )}
                   </div>
+
+                  {/* Show Name field ONLY if template does NOT contain name placeholder */}
+                  {!hasNamePlaceholder && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Name
+                      </label>
+                      <input
+                        value={aud.name}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setAudiences((prev) => {
+                            const copy = [...prev];
+                            copy[aIndex].name = val;
+                            return copy;
+                          });
+                        }}
+                        className="mt-1 w-full border rounded px-3 py-2"
+                        placeholder="Enter full name"
+                      />
+                    </div>
+                  )}
 
                   {/* MSISDN */}
                   <div>
